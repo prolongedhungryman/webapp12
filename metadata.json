@@ -1,0 +1,6 @@
+{
+  "name": "Oxford Coding Summer Camp",
+  "description": "Minimalist dark-themed student portal & admin attendance management system for Oxford Secondary School Coding Summer Camp in Butwal.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
