@@ -58,8 +58,6 @@ export const AuthModal: React.FC = () => {
     setErrorMsg(null);
   };
 
-  const unRegisteredSampleToken = tokens.find((t) => !t.isOnboarded)?.token || 'OXF-2026-NEW99';
-
   return (
     <div
       id="auth-modal-overlay"
@@ -161,32 +159,6 @@ export const AuthModal: React.FC = () => {
                 <span>Enter Dashboard</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
-
-              {/* Quick test token helpers */}
-              <div className="pt-4 border-t border-[#3A3A3C]/70">
-                <div className="text-[11px] font-medium text-[#8E8E93] mb-2 flex items-center justify-between">
-                  <span>Quick Test Tokens:</span>
-                  <span className="text-[10px] text-[#505054]">Click to auto-fill</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => quickFillToken('OXF-2026-A891')}
-                    className="text-left p-2 rounded-md bg-[#121212] hover:bg-[#2C2C2E] border border-[#3A3A3C] transition-colors"
-                  >
-                    <div className="text-xs font-mono font-semibold text-[#F5F5F7]">OXF-2026-A891</div>
-                    <div className="text-[10px] text-[#8E8E93]">Aarav (Enrolled)</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => quickFillToken(unRegisteredSampleToken)}
-                    className="text-left p-2 rounded-md bg-[#121212] hover:bg-[#2C2C2E] border border-[#3A3A3C] transition-colors"
-                  >
-                    <div className="text-xs font-mono font-semibold text-[#30D158]">{unRegisteredSampleToken}</div>
-                    <div className="text-[10px] text-[#8E8E93]">New Onboarding</div>
-                  </button>
-                </div>
-              </div>
             </form>
           ) : (
             /* Admin Login Form */
@@ -235,17 +207,6 @@ export const AuthModal: React.FC = () => {
                 <Shield className="w-4 h-4" />
                 <span>Login as Administrator</span>
               </button>
-
-              <div className="pt-3 border-t border-[#3A3A3C]/70">
-                <button
-                  type="button"
-                  onClick={fillAdminCredentials}
-                  className="w-full py-2 px-3 rounded-md bg-[#121212] hover:bg-[#2C2C2E] border border-[#3A3A3C] text-xs text-[#8E8E93] hover:text-[#F5F5F7] flex items-center justify-center space-x-1.5 transition-colors"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-[#0A84FF]" />
-                  <span>Fill Admin Credentials (`admin` / `HenryCabil@26`)</span>
-                </button>
-              </div>
             </form>
           )}
         </div>
