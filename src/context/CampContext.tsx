@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { Student, TokenRecord, AttendanceRecord, CodexTransaction, CampStats, AttendanceStatus } from '../types';
-import { INITIAL_STUDENTS, INITIAL_TOKENS, INITIAL_ATTENDANCE, INITIAL_TRANSACTIONS, TODAY_STR } from '../data/initialData';
+import { INITIAL_STUDENTS, INITIAL_TOKENS, INITIAL_ATTENDANCE, INITIAL_TRANSACTIONS } from '../data/initialData';
 import { supabase } from '../lib/supabase';
 import { checkRateLimit } from '../lib/rateLimit';
 
@@ -17,11 +17,12 @@ interface CampContextType {
   stats: CampStats;
   todayStr: string;
   isBackendConnected: boolean;
+  isLoading: boolean;
   setAuthModalOpen: (open: boolean) => void;
   setAuthModalTab: (tab: 'student' | 'admin') => void;
   openStudentAuth: () => void;
   openAdminAuth: () => void;
-  loginWithToken: (tokenInput: string) => { success: boolean; needsOnboarding?: boolean; message?: string };
+  loginWithToken: (tokenInput: string) => Promise<{ success: boolean; needsOnboarding?: boolean; message?: string }>;
   loginAdmin: (user: string, pass: string) => { success: boolean; message?: string };
   logout: () => void;
   completeOnboarding: (data: {
@@ -46,14 +47,13 @@ interface CampContextType {
 const CampContext = createContext<CampContextType | undefined>(undefined);
 
 const STORAGE_KEYS = {
-  STUDENTS: 'oxf_camp_students_v1',
-  TOKENS: 'oxf_camp_tokens_v1',
-  ATTENDANCE: 'oxf_camp_attendance_v1',
-  TRANSACTIONS: 'oxf_camp_tx_v1',
   CURRENT_STUDENT_ID: 'oxf_camp_cur_student_id_v1',
   IS_ADMIN: 'oxf_camp_is_admin_v1',
   PENDING_TOKEN: 'oxf_camp_pending_token_v1',
 };
+
+// Dynamic today string — always uses actual current date
+const getTodayStr = () => new Date().toISOString().split('T')[0];
 
 // Database mappers
 const mapDbStudentToStudent = (row: any): Student => ({
@@ -100,41 +100,13 @@ const mapDbTxToTx = (row: any): CodexTransaction => ({
 });
 
 export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [students, setStudents] = useState<Student[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-      return saved ? JSON.parse(saved) : INITIAL_STUDENTS;
-    } catch {
-      return INITIAL_STUDENTS;
-    }
-  });
-
-  const [tokens, setTokens] = useState<TokenRecord[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.TOKENS);
-      return saved ? JSON.parse(saved) : INITIAL_TOKENS;
-    } catch {
-      return INITIAL_TOKENS;
-    }
-  });
-
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.ATTENDANCE);
-      return saved ? JSON.parse(saved) : INITIAL_ATTENDANCE;
-    } catch {
-      return INITIAL_ATTENDANCE;
-    }
-  });
-
-  const [transactions, setTransactions] = useState<CodexTransaction[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
-      return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
-    } catch {
-      return INITIAL_TRANSACTIONS;
-    }
-  });
+  // Backend-first: start with empty arrays, populate from Supabase
+  const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
+  const [tokens, setTokens] = useState<TokenRecord[]>(INITIAL_TOKENS);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(INITIAL_ATTENDANCE);
+  const [transactions, setTransactions] = useState<CodexTransaction[]>(INITIAL_TRANSACTIONS);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [todayStr] = useState<string>(getTodayStr());
 
   const [currentStudentId, setCurrentStudentId] = useState<string | null>(() => {
     try {
@@ -164,39 +136,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [authModalTab, setAuthModalTab] = useState<'student' | 'admin'>('student');
   const [isBackendConnected, setIsBackendConnected] = useState<boolean>(true);
 
-  // Sync state changes to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [students]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.TOKENS, JSON.stringify(tokens));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [tokens]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(attendanceRecords));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [attendanceRecords]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [transactions]);
-
+  // Persist only session state to localStorage (NOT student/token data)
   useEffect(() => {
     if (currentStudentId) {
       localStorage.setItem(STORAGE_KEYS.CURRENT_STUDENT_ID, currentStudentId);
@@ -217,9 +157,10 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [pendingOnboardingToken]);
 
-  // Fetch all state from Supabase backend
+  // Fetch all state from Supabase backend (single source of truth)
   const refreshFromBackend = useCallback(async () => {
     try {
+      setIsLoading(true);
       const [stuRes, tokRes, attRes, txRes] = await Promise.all([
         supabase.from('students').select('*').order('created_at', { ascending: false }),
         supabase.from('tokens').select('*').order('created_at', { ascending: false }),
@@ -227,22 +168,25 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
         supabase.from('codex_transactions').select('*').order('created_at', { ascending: false }),
       ]);
 
-      if (stuRes.data && stuRes.data.length > 0) {
+      // Always set from backend — even if empty (empty is valid, not an error)
+      if (stuRes.data) {
         setStudents(stuRes.data.map(mapDbStudentToStudent));
       }
-      if (tokRes.data && tokRes.data.length > 0) {
+      if (tokRes.data) {
         setTokens(tokRes.data.map(mapDbTokenToToken));
       }
-      if (attRes.data && attRes.data.length > 0) {
+      if (attRes.data) {
         setAttendanceRecords(attRes.data.map(mapDbAttendanceToAttendance));
       }
-      if (txRes.data && txRes.data.length > 0) {
+      if (txRes.data) {
         setTransactions(txRes.data.map(mapDbTxToTx));
       }
       setIsBackendConnected(true);
     } catch (err) {
-      console.warn('Backend sync failed, maintaining local fallback:', err);
+      console.warn('Backend sync failed:', err);
       setIsBackendConnected(false);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -329,7 +273,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     let present = 0;
     students.forEach((stu) => {
-      const rec = attendanceRecords.find((a) => a.studentId === stu.id && a.date === TODAY_STR);
+      const rec = attendanceRecords.find((a) => a.studentId === stu.id && a.date === todayStr);
       if (rec && rec.status === 'PRESENT') {
         present++;
       }
@@ -344,7 +288,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
       absentToday: absent,
       attendanceRate: rate,
     };
-  }, [students, attendanceRecords]);
+  }, [students, attendanceRecords, todayStr]);
 
   const openStudentAuth = () => {
     setAuthModalTab('student');
@@ -356,7 +300,8 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthModalOpen(true);
   };
 
-  const loginWithToken = (tokenInput: string) => {
+  // Login with token — now async to support real-time Supabase lookup
+  const loginWithToken = async (tokenInput: string) => {
     if (!checkRateLimit('login_student', { maxRequests: 5, windowMs: 60000 })) {
       return { success: false, message: 'Too many login attempts. Please wait a moment.' };
     }
@@ -366,20 +311,29 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, message: 'Please enter your access token.' };
     }
 
-    const tokenObj = tokens.find((t) => t.token.toUpperCase() === cleanToken);
-    if (!tokenObj) {
-      // Direct fallback fetch in background
-      supabase
-        .from('tokens')
-        .select('*')
-        .eq('token', cleanToken)
-        .single()
-        .then(({ data }) => {
-          if (data) {
-            setTokens((prev) => [mapDbTokenToToken(data), ...prev]);
-          }
-        });
+    // First check in-memory state
+    let tokenObj = tokens.find((t) => t.token.toUpperCase() === cleanToken);
 
+    // If not found in memory, try fetching directly from Supabase
+    if (!tokenObj) {
+      try {
+        const { data } = await supabase
+          .from('tokens')
+          .select('*')
+          .eq('token', cleanToken)
+          .single();
+
+        if (data) {
+          const mappedToken = mapDbTokenToToken(data);
+          setTokens((prev) => [mappedToken, ...prev.filter((t) => t.token !== mappedToken.token)]);
+          tokenObj = mappedToken;
+        }
+      } catch {
+        // Token not found in Supabase either
+      }
+    }
+
+    if (!tokenObj) {
       return {
         success: false,
         message: 'Invalid access token. Please verify your code or contact the Oxford camp instructor.',
@@ -394,8 +348,32 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // Find student
-    const student = students.find((s) => s.tokenId.toUpperCase() === cleanToken || s.id === tokenObj.studentId);
+    const student = students.find((s) => s.tokenId.toUpperCase() === cleanToken || s.id === tokenObj!.studentId);
     if (!student) {
+      // Student may not be in memory yet, try fetching from Supabase
+      if (tokenObj.studentId) {
+        try {
+          const { data } = await supabase
+            .from('students')
+            .select('*')
+            .eq('id', tokenObj.studentId)
+            .single();
+
+          if (data) {
+            const mappedStudent = mapDbStudentToStudent(data);
+            setStudents((prev) => [mappedStudent, ...prev.filter((s) => s.id !== mappedStudent.id)]);
+            setCurrentStudentId(mappedStudent.id);
+            setIsAdminLoggedIn(false);
+            setPendingOnboardingToken(null);
+            setAuthModalOpen(false);
+            setTimeout(() => markAttendanceSelf(mappedStudent.id), 100);
+            return { success: true };
+          }
+        } catch {
+          // Student not found
+        }
+      }
+
       setPendingOnboardingToken(tokenObj.token);
       setAuthModalOpen(false);
       return { success: true, needsOnboarding: true };
@@ -405,6 +383,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAdminLoggedIn(false);
     setPendingOnboardingToken(null);
     setAuthModalOpen(false);
+    setTimeout(() => markAttendanceSelf(student.id), 100);
     return { success: true };
   };
 
@@ -416,7 +395,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const trimmedUser = user.trim();
     const trimmedPass = pass.trim();
 
-    if (trimmedUser === 'admin' && trimmedPass === 'HenryCabil@26') {
+    if (trimmedUser === import.meta.env.VITE_ADMIN_USER && trimmedPass === import.meta.env.VITE_ADMIN_PASS) {
       setIsAdminLoggedIn(true);
       setCurrentStudentId(null);
       setPendingOnboardingToken(null);
@@ -426,7 +405,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return {
       success: false,
-      message: 'Invalid administrator credentials. Username is "admin" and password is "HenryCabil@26".',
+      message: 'Invalid administrator credentials.',
     };
   };
 
@@ -461,7 +440,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
       parentPhone: data.parentPhone.trim(),
       isOnboarded: true,
       codexBalance: 50,
-      registeredAt: TODAY_STR,
+      registeredAt: todayStr,
       track: chosenTrack,
     };
 
@@ -478,7 +457,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const initialAttendance: AttendanceRecord = {
       id: `att_${newStudentId}_today`,
       studentId: newStudentId,
-      date: TODAY_STR,
+      date: todayStr,
       status: 'ABSENT',
       checkInTime: null,
       verifiedBy: 'ADMIN',
@@ -492,7 +471,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
       amount: 50,
       type: 'EARNED',
       reason: 'Welcome Registration Grant (CODEX Points)',
-      date: TODAY_STR,
+      date: todayStr,
     };
     setTransactions((prev) => [welcomeTx, ...prev]);
 
@@ -509,7 +488,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
         p_school_name: cleanSchool,
         p_parent_phone: data.parentPhone.trim(),
         p_track: chosenTrack,
-        p_today_str: TODAY_STR,
+        p_today_str: todayStr,
       });
 
       if (error) {
@@ -525,7 +504,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
           parent_phone: data.parentPhone.trim(),
           is_onboarded: true,
           codex_balance: 50,
-          registered_at: TODAY_STR,
+          registered_at: todayStr,
           track: chosenTrack,
         });
 
@@ -537,7 +516,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await supabase.from('attendance_records').upsert({
           id: initialAttendance.id,
           student_id: newStudentId,
-          date: TODAY_STR,
+          date: todayStr,
           status: 'ABSENT',
           verified_by: 'ADMIN',
           timestamp: initialAttendance.timestamp,
@@ -549,7 +528,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
           amount: 50,
           type: 'EARNED',
           reason: welcomeTx.reason,
-          date: TODAY_STR,
+          date: todayStr,
         });
       } else if (rpcResult && typeof rpcResult === 'object') {
         const persisted = rpcResult as any;
@@ -602,7 +581,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     const existing = attendanceRecords.find(
-      (a) => a.studentId === studentId && a.date === TODAY_STR
+      (a) => a.studentId === studentId && a.date === todayStr
     );
 
     if (existing && existing.status === 'PRESENT') {
@@ -622,7 +601,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const newRec: AttendanceRecord = {
         id: `att_${studentId}_${Date.now()}`,
         studentId,
-        date: TODAY_STR,
+        date: todayStr,
         status: 'PRESENT',
         checkInTime: formattedTime,
         verifiedBy: 'SELF',
@@ -644,8 +623,8 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
       studentId,
       amount: 10,
       type: 'EARNED',
-      reason: `Daily Attendance Check-in (${TODAY_STR})`,
-      date: TODAY_STR,
+      reason: `Daily Attendance Check-in (${todayStr})`,
+      date: todayStr,
     };
     setTransactions((prev) => [newTx, ...prev]);
 
@@ -653,7 +632,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { error } = await supabase.rpc('mark_attendance_self', {
         p_student_id: studentId,
-        p_date: TODAY_STR,
+        p_date: todayStr,
         p_check_in_time: formattedTime,
       });
 
@@ -663,7 +642,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await supabase.from('attendance_records').upsert({
           id: existing?.id || `att_${studentId}_${Date.now()}`,
           student_id: studentId,
-          date: TODAY_STR,
+          date: todayStr,
           status: 'PRESENT',
           check_in_time: formattedTime,
           verified_by: 'SELF',
@@ -753,7 +732,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const newRecord: TokenRecord = {
       token: newTokenStr,
       isOnboarded: false,
-      createdAt: TODAY_STR,
+      createdAt: todayStr,
       assignedGrade: assignedGrade || 'Grade 10',
       studentName: studentName || undefined,
     };
@@ -766,7 +745,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .insert({
         token: newTokenStr,
         is_onboarded: false,
-        created_at: TODAY_STR,
+        created_at: todayStr,
         assigned_grade: assignedGrade || 'Grade 10',
         student_name: studentName || null,
       })
@@ -803,7 +782,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ];
 
     const rows = students.map((stu) => {
-      const att = attendanceRecords.find((a) => a.studentId === stu.id && a.date === TODAY_STR);
+      const att = attendanceRecords.find((a) => a.studentId === stu.id && a.date === todayStr);
       return [
         `"${stu.fullName.replace(/"/g, '""')}"`,
         `"${stu.tokenId}"`,
@@ -811,7 +790,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
         `"${stu.section}"`,
         `"${stu.schoolName}"`,
         `"${stu.parentPhone}"`,
-        `"${TODAY_STR}"`,
+        `"${todayStr}"`,
         `"${att?.status || 'ABSENT'}"`,
         `"${att?.checkInTime || '-'}"`,
         `"${att?.verifiedBy || 'SYSTEM'}"`,
@@ -823,25 +802,24 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Oxford_Camp_Attendance_${TODAY_STR}.csv`);
+    link.setAttribute('download', `Oxford_Camp_Attendance_${todayStr}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   const resetDemoData = async () => {
-    localStorage.removeItem(STORAGE_KEYS.STUDENTS);
-    localStorage.removeItem(STORAGE_KEYS.TOKENS);
-    localStorage.removeItem(STORAGE_KEYS.ATTENDANCE);
-    localStorage.removeItem(STORAGE_KEYS.TRANSACTIONS);
+    // Clear only session state from localStorage
     localStorage.removeItem(STORAGE_KEYS.CURRENT_STUDENT_ID);
     localStorage.removeItem(STORAGE_KEYS.IS_ADMIN);
     localStorage.removeItem(STORAGE_KEYS.PENDING_TOKEN);
 
-    setStudents(INITIAL_STUDENTS);
-    setTokens(INITIAL_TOKENS);
-    setAttendanceRecords(INITIAL_ATTENDANCE);
-    setTransactions(INITIAL_TRANSACTIONS);
+    // Also clear old legacy keys if they exist
+    localStorage.removeItem('oxf_camp_students_v1');
+    localStorage.removeItem('oxf_camp_tokens_v1');
+    localStorage.removeItem('oxf_camp_attendance_v1');
+    localStorage.removeItem('oxf_camp_tx_v1');
+
     setCurrentStudentId(null);
     setIsAdminLoggedIn(false);
     setPendingOnboardingToken(null);
@@ -863,8 +841,9 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
         authModalOpen,
         authModalTab,
         stats,
-        todayStr: TODAY_STR,
+        todayStr,
         isBackendConnected,
+        isLoading,
         setAuthModalOpen,
         setAuthModalTab,
         openStudentAuth,

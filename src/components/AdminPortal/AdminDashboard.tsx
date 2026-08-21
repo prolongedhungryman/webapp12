@@ -19,7 +19,7 @@ import {
 
 export const AdminDashboard: React.FC = () => {
   const { todayStr, logout, resetDemoData } = useCamp();
-  const [activeAdminView, setActiveAdminView] = useState<'register' | 'tokens'>('register');
+  const [activeAdminView, setActiveAdminView] = useState<'register' | 'tokens' | 'reports'>('register');
   const [resetNotice, setResetNotice] = useState(false);
 
   const handleResetData = () => {
@@ -118,12 +118,25 @@ export const AdminDashboard: React.FC = () => {
           <KeyRound className="w-3.5 h-3.5" />
           <span>Access Token Management</span>
         </button>
+
+        <button
+          onClick={() => setActiveAdminView('reports')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+            activeAdminView === 'reports'
+              ? 'bg-[#0A84FF] text-white shadow-sm'
+              : 'text-[#8E8E93] hover:text-[#F5F5F7] hover:bg-[#1E1E1E]'
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5" />
+          <span>Student Reports</span>
+        </button>
       </div>
 
       {/* Active Admin Section */}
       <div className="space-y-8">
         {activeAdminView === 'register' && <AttendanceRegisterTable />}
         {activeAdminView === 'tokens' && <TokenManagerPanel />}
+        {activeAdminView === 'reports' && <AttendanceRegisterTable />}
       </div>
 
     </div>

@@ -54,7 +54,7 @@ export const AuthModal: React.FC = () => {
 
   const fillAdminCredentials = () => {
     setAdminUser('admin');
-    setAdminPass('HenryCabil@26');
+    setAdminPass('');
     setErrorMsg(null);
   };
 
