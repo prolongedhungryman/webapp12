@@ -34,11 +34,11 @@ export const AuthModal: React.FC = () => {
     }
   };
 
-  const handleAdminSubmit = (e: React.FormEvent) => {
+  const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
-    const res = loginAdmin(adminUser, adminPass);
+    const res = await loginAdmin(adminUser, adminPass);
     if (!res.success) {
       setErrorMsg(res.message || 'Invalid credentials.');
     } else {

@@ -23,7 +23,7 @@ interface CampContextType {
   openStudentAuth: () => void;
   openAdminAuth: () => void;
   loginWithToken: (tokenInput: string) => Promise<{ success: boolean; needsOnboarding?: boolean; message?: string }>;
-  loginAdmin: (user: string, pass: string) => { success: boolean; message?: string };
+  loginAdmin: (user: string, pass: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   completeOnboarding: (data: {
     fullName: string;
@@ -387,7 +387,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true };
   };
 
-  const loginAdmin = (user: string, pass: string) => {
+  const loginAdmin = async (user: string, pass: string) => {
     if (!checkRateLimit('login_admin', { maxRequests: 5, windowMs: 60000 })) {
       return { success: false, message: 'Too many login attempts. Please wait a moment.' };
     }
@@ -395,12 +395,21 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const trimmedUser = user.trim();
     const trimmedPass = pass.trim();
 
-    if (trimmedUser === import.meta.env.VITE_ADMIN_USER && trimmedPass === import.meta.env.VITE_ADMIN_PASS) {
-      setIsAdminLoggedIn(true);
-      setCurrentStudentId(null);
-      setPendingOnboardingToken(null);
-      setAuthModalOpen(false);
-      return { success: true };
+    try {
+      const { data, error } = await supabase.rpc('check_admin_credentials', {
+        p_username: trimmedUser,
+        p_password: trimmedPass
+      });
+
+      if (data === true) {
+        setIsAdminLoggedIn(true);
+        setCurrentStudentId(null);
+        setPendingOnboardingToken(null);
+        setAuthModalOpen(false);
+        return { success: true };
+      }
+    } catch (err) {
+      console.error('Admin login error:', err);
     }
 
     return {
