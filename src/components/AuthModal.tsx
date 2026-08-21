@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useCamp } from '../context/CampContext';
-import { KeyRound, Shield, X, ArrowRight, AlertCircle, Sparkles, Check } from 'lucide-react';
+import { KeyRound, Shield, X, ArrowRight, AlertCircle, Sparkles, Check, Eye, EyeOff } from 'lucide-react';
 import { CodexBadgeIcon } from './CodexBadgeIcon';
 
 export const AuthModal: React.FC = () => {
@@ -19,6 +19,7 @@ export const AuthModal: React.FC = () => {
   const [adminPass, setAdminPass] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   if (!authModalOpen) return null;
 
@@ -188,15 +189,24 @@ export const AuthModal: React.FC = () => {
                 >
                   Password
                 </label>
-                <input
-                  id="admin-password"
-                  type="password"
-                  required
-                  value={adminPass}
-                  onChange={(e) => setAdminPass(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="w-full px-4 py-2.5 bg-[#121212] border border-[#3A3A3C] rounded-lg text-sm text-[#F5F5F7] placeholder-[#505054] focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF] transition-all font-mono"
-                />
+                <div className="relative">
+                  <input
+                    id="admin-password"
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={adminPass}
+                    onChange={(e) => setAdminPass(e.target.value)}
+                    placeholder="••••••••••••"
+                    className="w-full pl-4 pr-10 py-2.5 bg-[#121212] border border-[#3A3A3C] rounded-lg text-sm text-[#F5F5F7] placeholder-[#505054] focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF] transition-all font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-2.5 text-[#8E8E93] hover:text-[#F5F5F7] transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
               </div>
 
               <button

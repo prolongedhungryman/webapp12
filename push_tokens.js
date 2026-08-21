@@ -30,13 +30,14 @@ async function pushTokens() {
     for (let i = 1; i < lines.length; i++) {
       const parts = lines[i].split(',');
       const token = parts[0]?.trim();
+      const studentName = parts[1]?.trim() || null;
       if (token) {
         tokens.push({
           token: token,
           is_onboarded: false,
           created_at: new Date().toISOString().split('T')[0],
-          assigned_grade: 'Grade 10', // Default
-          student_name: null
+          assigned_grade: 'Class 6',
+          student_name: studentName
         });
       }
     }

@@ -16,7 +16,7 @@ export const OnboardingModal: React.FC = () => {
   );
 
   const [fullName, setFullName] = useState(tokenRecord?.studentName || '');
-  const [grade, setGrade] = useState(tokenRecord?.assignedGrade || 'Grade 10');
+  const [grade, setGrade] = useState(tokenRecord?.assignedGrade || 'Class 6');
   const [section, setSection] = useState('Section A');
   const [schoolName, setSchoolName] = useState('Oxford Secondary School');
   const [parentPhone, setParentPhone] = useState('+977 ');
@@ -115,11 +115,10 @@ export const OnboardingModal: React.FC = () => {
                   onChange={(e) => setGrade(e.target.value)}
                   className="w-full pl-9 pr-3 py-2.5 bg-[#121212] border border-[#3A3A3C] rounded-lg text-sm text-[#F5F5F7] focus:outline-none focus:border-[#0A84FF] transition-all"
                 >
-                  <option value="Grade 8">Grade 8</option>
-                  <option value="Grade 9">Grade 9</option>
-                  <option value="Grade 10">Grade 10</option>
-                  <option value="Grade 11">Grade 11</option>
-                  <option value="Grade 12">Grade 12</option>
+                  <option value="Class 6">Class 6</option>
+                  <option value="Class 7">Class 7</option>
+                  <option value="Class 8">Class 8</option>
+                  <option value="Class 9">Class 9</option>
                 </select>
                 <GraduationCap className="w-4 h-4 absolute left-3 top-3 text-[#8E8E93]" />
               </div>
