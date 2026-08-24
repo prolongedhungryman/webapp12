@@ -1041,10 +1041,11 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
         full_name: input.fullName.trim(),
         grade: input.studentClass,
         section: input.section,
+        parent_phone: newStudent.parentPhone || '',
         codex_balance: input.points,
         is_onboarded: true,
         registered_at: newStudent.registeredAt,
-      });
+      } as any);
       await supabase
         .from('tokens')
         .update({ is_onboarded: true, student_id: studentId, student_name: input.fullName.trim() })
