@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useCamp } from '../context/CampContext';
-import { Sparkles, User, GraduationCap, School, Phone, ArrowRight, ShieldCheck, KeyRound, X } from 'lucide-react';
+import { User, GraduationCap, School, Phone, ArrowRight, ShieldCheck, KeyRound, X } from 'lucide-react';
 import { CodexBadgeIcon } from './CodexBadgeIcon';
+import { CAMP_CLASSES, CAMP_SECTIONS, DEFAULT_CAMP_CLASS, DEFAULT_CAMP_SECTION } from '../lib/campOptions';
 
 export const OnboardingModal: React.FC = () => {
   const {
@@ -16,8 +17,8 @@ export const OnboardingModal: React.FC = () => {
   );
 
   const [fullName, setFullName] = useState(tokenRecord?.studentName || '');
-  const [grade, setGrade] = useState(tokenRecord?.assignedGrade || 'Class 6');
-  const [section, setSection] = useState('Section A');
+  const [grade, setGrade] = useState(tokenRecord?.assignedGrade || DEFAULT_CAMP_CLASS);
+  const [section, setSection] = useState(DEFAULT_CAMP_SECTION);
   const [schoolName, setSchoolName] = useState('Oxford Secondary School');
   const [parentPhone, setParentPhone] = useState('+977 ');
 
@@ -45,7 +46,6 @@ export const OnboardingModal: React.FC = () => {
         id="onboarding-modal-container"
         className="w-full max-w-lg bg-[#1E1E1E] border border-[#3A3A3C] rounded-2xl shadow-2xl overflow-hidden flex flex-col"
       >
-        {/* Header */}
         <div className="relative px-6 pt-6 pb-5 border-b border-[#3A3A3C] bg-gradient-to-b from-[#1E1E1E] to-[#161616]">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
@@ -72,7 +72,6 @@ export const OnboardingModal: React.FC = () => {
             Welcome to the Oxford Secondary School Coding Summer Camp in Butwal. Enter your official details to claim your seat and receive your <span className="text-[#0A84FF] font-semibold">50 CODEX points</span> welcome grant.
           </p>
 
-          {/* Welcome Bonus Callout */}
           <div className="mt-3 flex items-center space-x-2.5 p-2.5 rounded-lg bg-[#121212] border border-[#3A3A3C] text-xs">
             <CodexBadgeIcon size={18} glow />
             <div className="flex-1 text-[#F5F5F7]">
@@ -81,9 +80,7 @@ export const OnboardingModal: React.FC = () => {
           </div>
         </div>
 
-        {/* Onboarding Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Full Name */}
           <div>
             <label htmlFor="input-full-name" className="block text-xs font-medium text-[#8E8E93] uppercase tracking-wider mb-1.5">
               Full Name *
@@ -102,11 +99,10 @@ export const OnboardingModal: React.FC = () => {
             </div>
           </div>
 
-          {/* Class & Section */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label htmlFor="select-grade" className="block text-xs font-medium text-[#8E8E93] uppercase tracking-wider mb-1.5">
-                Class / Grade *
+                Class *
               </label>
               <div className="relative">
                 <select
@@ -115,32 +111,32 @@ export const OnboardingModal: React.FC = () => {
                   onChange={(e) => setGrade(e.target.value)}
                   className="w-full pl-9 pr-3 py-2.5 bg-[#121212] border border-[#3A3A3C] rounded-lg text-sm text-[#F5F5F7] focus:outline-none focus:border-[#0A84FF] transition-all"
                 >
-                  <option value="Class 6">Class 6</option>
-                  <option value="Class 7">Class 7</option>
-                  <option value="Class 8">Class 8</option>
-                  <option value="Class 9">Class 9</option>
+                  {CAMP_CLASSES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
                 </select>
                 <GraduationCap className="w-4 h-4 absolute left-3 top-3 text-[#8E8E93]" />
               </div>
             </div>
 
             <div>
-              <label htmlFor="input-section" className="block text-xs font-medium text-[#8E8E93] uppercase tracking-wider mb-1.5">
+              <label htmlFor="select-section" className="block text-xs font-medium text-[#8E8E93] uppercase tracking-wider mb-1.5">
                 Section *
               </label>
-              <input
-                id="input-section"
-                type="text"
+              <select
+                id="select-section"
                 required
                 value={section}
                 onChange={(e) => setSection(e.target.value)}
-                placeholder="e.g. Section A"
-                className="w-full px-3 py-2.5 bg-[#121212] border border-[#3A3A3C] rounded-lg text-sm text-[#F5F5F7] focus:outline-none focus:border-[#0A84FF] transition-all"
-              />
+                className="w-full pl-9 pr-3 py-2.5 bg-[#121212] border border-[#3A3A3C] rounded-lg text-sm text-[#F5F5F7] focus:outline-none focus:border-[#0A84FF] transition-all"
+              >
+                {CAMP_SECTIONS.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
             </div>
           </div>
 
-          {/* School Name */}
           <div>
             <label htmlFor="input-school-name" className="block text-xs font-medium text-[#8E8E93] uppercase tracking-wider mb-1.5">
               School Name
@@ -159,7 +155,6 @@ export const OnboardingModal: React.FC = () => {
             </div>
           </div>
 
-          {/* Parent's Phone Number */}
           <div>
             <label htmlFor="input-parent-phone" className="block text-xs font-medium text-[#8E8E93] uppercase tracking-wider mb-1.5">
               Parent&apos;s Phone Number *
@@ -179,7 +174,6 @@ export const OnboardingModal: React.FC = () => {
             <p className="mt-1 text-[10px] text-[#8E8E93]">Used strictly for emergency contact and camp status updates.</p>
           </div>
 
-          {/* Actions */}
           <div className="pt-3">
             <button
               id="btn-complete-registration"

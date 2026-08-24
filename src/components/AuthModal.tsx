@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useCamp } from '../context/CampContext';
 import { KeyRound, Shield, X, ArrowRight, AlertCircle, Sparkles, Check, Eye, EyeOff } from 'lucide-react';
 import { CodexBadgeIcon } from './CodexBadgeIcon';
-
+import { supabase } from '../../lib/supabase';
 export const AuthModal: React.FC = () => {
   const {
     authModalOpen,
@@ -21,20 +21,62 @@ export const AuthModal: React.FC = () => {
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
+  // New state for student code/password flow
+  const [signupCode, setSignupCode] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
+  const [signupClass, setSignupClass] = useState<number | ''>('');
+  const [signupSection, setSignupSection] = useState('');
+  const [loginCode, setLoginCode] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+
   if (!authModalOpen) return null;
 
-  const handleStudentSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
-
-    const res = loginWithToken(tokenInput);
-    if (!res.success) {
-      setErrorMsg(res.message || 'Invalid access token.');
-    } else {
-      setTokenInput('');
+    if (!loginCode || !loginPassword) {
+      setErrorMsg('Please enter code and password.');
+      return;
+    }
+    const { data, error } = await supabase.rpc('login_student', { p_login_code: loginCode, p_password: loginPassword });
+    if (error) {
+      setErrorMsg(error.message || 'Login failed.');
+    } else if (data) {
+      if (data === true) {
+        setAuthModalOpen(false);
+      } else {
+        setErrorMsg('Invalid code or password.');
+      }
     }
   };
 
+  const handleSignupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    if (signupPassword !== signupConfirmPassword) {
+      setErrorMsg('Passwords do not match.');
+      return;
+    }
+    if (!signupCode || !signupPassword || !signupClass || !signupSection) {
+      setErrorMsg('Please fill all signup fields.');
+      return;
+    }
+    const { data, error } = await supabase.rpc('signup_student', {
+      p_login_code: signupCode,
+      p_password: signupPassword,
+      p_class: signupClass as number,
+      p_section: signupSection,
+    });
+    if (error) {
+      setErrorMsg(error.message || 'Signup failed.');
+    } else {
+      // Auto-login after successful signup
+      setLoginCode(signupCode);
+      setLoginPassword(signupPassword);
+      setAuthModalOpen(false);
+    }
+  };
   const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -124,101 +166,76 @@ export const AuthModal: React.FC = () => {
           )}
 
           {authModalTab === 'student' ? (
-            /* Student Access Form */
-            <form onSubmit={handleStudentSubmit} className="space-y-4">
+          <div className="space-y-8">
+            {/* Sign Up Form */}
+            <form onSubmit={handleSignupSubmit} className="space-y-4">
+              <h3 className="text-sm font-medium text-[#F5F5F7]">Sign Up with Code</h3>
               <div>
-                <label
-                  htmlFor="token-input"
-                  className="block text-xs font-medium text-[#8E8E93] uppercase tracking-wider mb-2"
-                >
-                  Access Token ID
-                </label>
-                <div className="relative">
-                  <input
-                    id="token-input"
-                    type="text"
-                    required
-                    value={tokenInput}
-                    onChange={(e) => setTokenInput(e.target.value.toUpperCase())}
-                    placeholder="e.g. OXF-2026-A891"
-                    className="w-full px-4 py-3 bg-[#121212] border border-[#3A3A3C] rounded-lg text-sm font-mono text-[#F5F5F7] placeholder-[#505054] focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF] transition-all"
-                  />
-                  <div className="absolute right-3 top-3 text-[#505054]">
-                    <KeyRound className="w-5 h-5" />
-                  </div>
-                </div>
-                <p className="mt-1.5 text-[11px] text-[#8E8E93]">
-                  Enter the single-use token provided upon your camp enrollment.
-                </p>
+                <label htmlFor="signup-code" className="block text-xs font-medium text-[#8E8E93] uppercase tracking-wider mb-2">Login Code</label>
+                <input id="signup-code" type="text" required value={signupCode} onChange={e => setSignupCode(e.target.value.toUpperCase())} placeholder="e.g. 103033" className="w-full px-4 py-3 bg-[#121212] border border-[#3A3A3C] rounded-lg text-sm font-mono text-[#F5F5F7] placeholder-[#505054] focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF] transition-all" />
               </div>
-
-              <button
-                id="btn-enter-dashboard"
-                type="submit"
-                className="w-full py-3 px-4 rounded-lg bg-[#0A84FF] hover:bg-[#0071E3] text-white font-medium text-sm flex items-center justify-center space-x-2 transition-all shadow-md active:scale-[0.99]"
-              >
-                <span>Enter Dashboard</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              <div>
+                <label htmlFor="signup-password" className="block text-xs font-medium text-[#8E8E93] uppercase tracking-wider mb-2">Password</label>
+                <input id="signup-password" type={showPassword ? 'text' : 'password'} required value={signupPassword} onChange={e => setSignupPassword(e.target.value)} placeholder="••••••••••••" className="w-full px-4 py-3 bg-[#121212] border border-[#3A3A3C] rounded-lg text-sm text-[#F5F5F7] placeholder-[#505054] focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF] transition-all font-mono" />
+              </div>
+              <div>
+                <label htmlFor="signup-confirm" className="block text-xs font-medium text-[#8E8E93] uppercase tracking-wider mb-2">Confirm Password</label>
+                <input id="signup-confirm" type={showPassword ? 'text' : 'password'} required value={signupConfirmPassword} onChange={e => setSignupConfirmPassword(e.target.value)} placeholder="••••••••••••" className="w-full px-4 py-3 bg-[#121212] border border-[#3A3A3C] rounded-lg text-sm text-[#F5F5F7] placeholder-[#505054] focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF] transition-all font-mono" />
+              </div>
+              <div>
+                <label htmlFor="signup-class" className="block text-xs font-medium text-[#8E8E93] uppercase tracking-wider mb-2">Class</label>
+                <select id="signup-class" required value={signupClass} onChange={e => setSignupClass(Number(e.target.value))} className="w-full px-4 py-3 bg-[#121212] border border-[#3A3A3C] rounded-lg text-sm text-[#F5F5F7] focus:outline-none focus:border-[#0A84FF]">
+                  <option value="">Select class</option>
+                  {[6,7,8,9].map(c => (<option key={c} value={c}>{c}</option>))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="signup-section" className="block text-xs font-medium text-[#8E8E93] uppercase tracking-wider mb-2">Section</label>
+                <select id="signup-section" required value={signupSection} onChange={e => setSignupSection(e.target.value)} className="w-full px-4 py-3 bg-[#121212] border border-[#3A3A3C] rounded-lg text-sm text-[#F5F5F7] focus:outline-none focus:border-[#0A84FF]">
+                  <option value="">Select section</option>
+                  {['orange','pink','red','yellow','green','blue'].map(s => (<option key={s} value={s}>{s}</option>))}
+                </select>
+              </div>
+              <button type="submit" className="w-full py-3 px-4 rounded-lg bg-[#0A84FF] hover:bg-[#0071E3] text-white font-medium text-sm flex items-center justify-center transition-all shadow-md">Sign Up</button>
             </form>
-          ) : (
-            /* Admin Login Form */
-            <form onSubmit={handleAdminSubmit} className="space-y-4">
+            {/* Login Form */}
+            <form onSubmit={handleLoginSubmit} className="space-y-4">
+              <h3 className="text-sm font-medium text-[#F5F5F7]">Login with Code</h3>
               <div>
-                <label
-                  htmlFor="admin-username"
-                  className="block text-xs font-medium text-[#8E8E93] uppercase tracking-wider mb-2"
-                >
-                  Username
-                </label>
-                <input
-                  id="admin-username"
-                  type="text"
-                  required
-                  value={adminUser}
-                  onChange={(e) => setAdminUser(e.target.value)}
-                  placeholder="admin"
-                  className="w-full px-4 py-2.5 bg-[#121212] border border-[#3A3A3C] rounded-lg text-sm text-[#F5F5F7] placeholder-[#505054] focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF] transition-all"
-                />
+                <label htmlFor="login-code" className="block text-xs font-medium text-[#8E8E93] uppercase tracking-wider mb-2">Login Code</label>
+                <input id="login-code" type="text" required value={loginCode} onChange={e => setLoginCode(e.target.value.toUpperCase())} placeholder="e.g. 103033" className="w-full px-4 py-3 bg-[#121212] border border-[#3A3A3C] rounded-lg text-sm font-mono text-[#F5F5F7] placeholder-[#505054] focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF] transition-all" />
               </div>
-
               <div>
-                <label
-                  htmlFor="admin-password"
-                  className="block text-xs font-medium text-[#8E8E93] uppercase tracking-wider mb-2"
-                >
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    id="admin-password"
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    value={adminPass}
-                    onChange={(e) => setAdminPass(e.target.value)}
-                    placeholder="••••••••••••"
-                    className="w-full pl-4 pr-10 py-2.5 bg-[#121212] border border-[#3A3A3C] rounded-lg text-sm text-[#F5F5F7] placeholder-[#505054] focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF] transition-all font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-2.5 text-[#8E8E93] hover:text-[#F5F5F7] transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
+                <label htmlFor="login-password" className="block text-xs font-medium text-[#8E8E93] uppercase tracking-wider mb-2">Password</label>
+                <input id="login-password" type={showPassword ? 'text' : 'password'} required value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="••••••••••••" className="w-full px-4 py-3 bg-[#121212] border border-[#3A3A3C] rounded-lg text-sm text-[#F5F5F7] placeholder-[#505054] focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF] transition-all font-mono" />
               </div>
-
-              <button
-                id="btn-admin-login-submit"
-                type="submit"
-                className="w-full py-3 px-4 rounded-lg bg-[#0A84FF] hover:bg-[#0071E3] text-white font-medium text-sm flex items-center justify-center space-x-2 transition-all shadow-md active:scale-[0.99]"
-              >
-                <Shield className="w-4 h-4" />
-                <span>Login as Administrator</span>
-              </button>
+              <button type="submit" className="w-full py-3 px-4 rounded-lg bg-[#0A84FF] hover:bg-[#0071E3] text-white font-medium text-sm flex items-center justify-center transition-all shadow-md">Log In</button>
             </form>
-          )}
+          </div>
+        ) : (
+          /* Admin Login Form */
+          <form onSubmit={handleAdminSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="admin-username" className="block text-xs font-medium text-[#8E8E93] uppercase tracking-wider mb-2">Username</label>
+              <input id="admin-username" type="text" required value={adminUser} onChange={(e) => setAdminUser(e.target.value)} placeholder="admin" className="w-full px-4 py-2.5 bg-[#121212] border border-[#3A3A3C] rounded-lg text-sm text-[#F5F5F7] placeholder-[#505054] focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF] transition-all" />
+            </div>
+
+            <div>
+              <label htmlFor="admin-password" className="block text-xs font-medium text-[#8E8E93] uppercase tracking-wider mb-2">Password</label>
+              <div className="relative">
+                <input id="admin-password" type={showPassword ? 'text' : 'password'} required value={adminPass} onChange={(e) => setAdminPass(e.target.value)} placeholder="••••••••••••" className="w-full pl-4 pr-10 py-2.5 bg-[#121212] border border-[#3A3A3C] rounded-lg text-sm text-[#F5F5F7] placeholder-[#505054] focus:outline-none focus:border-[#0A84FF] focus:ring-1 focus:ring-[#0A84FF] transition-all font-mono" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-2.5 text-[#8E8E93] hover:text-[#F5F5F7] transition-colors">
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+
+            <button id="btn-admin-login-submit" type="submit" className="w-full py-3 px-4 rounded-lg bg-[#0A84FF] hover:bg-[#0071E3] text-white font-medium text-sm flex items-center justify-center space-x-2 transition-all shadow-md active:scale-[0.99]">
+              <Shield className="w-4 h-4" />
+              <span>Login as Administrator</span>
+            </button>
+          </form>
+        )}
         </div>
       </div>
     </div>

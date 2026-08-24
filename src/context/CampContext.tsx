@@ -3,6 +3,8 @@ import { Student, TokenRecord, AttendanceRecord, CodexTransaction, CampStats, At
 import { INITIAL_STUDENTS, INITIAL_TOKENS, INITIAL_ATTENDANCE, INITIAL_TRANSACTIONS } from '../data/initialData';
 import { supabase } from '../lib/supabase';
 import { checkRateLimit } from '../lib/rateLimit';
+import { DEFAULT_CAMP_CLASS, addDays } from '../lib/campOptions';
+import * as XLSX from 'xlsx';
 
 interface CampContextType {
   students: Student[];
@@ -37,9 +39,20 @@ interface CampContextType {
   updateStudentProfile: (studentId: string, updates: Partial<Student>) => Promise<void> | void;
   markAttendanceSelf: (studentId: string) => Promise<void> | void;
   adminToggleAttendance: (studentId: string, date: string, newStatus: AttendanceStatus) => Promise<void> | void;
-  adminGenerateToken: (assignedGrade?: string, studentName?: string) => string;
+  adminGenerateToken: (assignedGrade?: string, studentName?: string) => Promise<string> | string;
   adminRevokeToken: (tokenStr: string) => Promise<void> | void;
   exportAttendanceCSV: () => void;
+  addOrUpdateStudent: (input: {
+    fullName: string;
+    token?: string;
+    studentClass: string;
+    section: string;
+    assignedGrade: string;
+    points: number;
+  }) => Promise<Student>;
+  markAttendance: (studentToken: string, date: string, present: boolean) => Promise<void>;
+  adjustCodexPoints: (studentToken: string, delta: number) => Promise<void>;
+  exportAttendance: (endDate?: string) => Promise<void>;
   resetDemoData: () => Promise<void> | void;
   refreshFromBackend: () => Promise<void>;
 }
@@ -106,7 +119,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(INITIAL_ATTENDANCE);
   const [transactions, setTransactions] = useState<CodexTransaction[]>(INITIAL_TRANSACTIONS);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [todayStr] = useState<string>(getTodayStr());
+  const todayStr = getTodayStr();
 
   const [currentStudentId, setCurrentStudentId] = useState<string | null>(() => {
     try {
