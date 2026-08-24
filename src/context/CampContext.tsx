@@ -483,7 +483,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
         is_onboarded: true,
         codex_balance: newStudent.codexBalance,
         registered_at: newStudent.registeredAt,
-      });
+      } as any);
       await supabase
         .from('tokens')
         .update({ is_onboarded: true, student_id: studentId, student_name: data.fullName.trim() })
@@ -992,6 +992,152 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     document.body.removeChild(link);
   };
 
+  const addOrUpdateStudent = async (input: {
+    fullName: string;
+    token?: string;
+    studentClass: string;
+    section: string;
+    assignedGrade: string;
+    points: number;
+  }): Promise<Student> => {
+    let cleanToken = (input.token || '').trim().toUpperCase();
+    if (!cleanToken) {
+      const unused = tokens.find((t) => !t.isOnboarded);
+      cleanToken = unused ? unused.token : adminGenerateToken(input.assignedGrade, input.fullName);
+    }
+
+    const existing = students.find(
+      (s) => s.tokenId.toUpperCase() === cleanToken || s.fullName.toLowerCase() === input.fullName.toLowerCase()
+    );
+
+    const studentId = existing?.id || `stu_${Date.now()}`;
+    const newStudent: Student = {
+      id: studentId,
+      tokenId: cleanToken,
+      fullName: input.fullName.trim(),
+      grade: input.studentClass,
+      section: input.section,
+      schoolName: existing?.schoolName || 'Oxford Secondary School',
+      parentPhone: existing?.parentPhone || '',
+      isOnboarded: true,
+      codexBalance: input.points,
+      registeredAt: existing?.registeredAt || todayStr,
+      track: existing?.track || 'Full-Stack Web Development',
+    };
+
+    setStudents((prev) => [newStudent, ...prev.filter((s) => s.id !== studentId)]);
+    setTokens((prev) =>
+      prev.map((t) =>
+        t.token.toUpperCase() === cleanToken
+          ? { ...t, isOnboarded: true, studentId, studentName: input.fullName.trim() }
+          : t
+      )
+    );
+
+    try {
+      await supabase.from('students').upsert({
+        id: studentId,
+        token_id: cleanToken,
+        full_name: input.fullName.trim(),
+        grade: input.studentClass,
+        section: input.section,
+        codex_balance: input.points,
+        is_onboarded: true,
+        registered_at: newStudent.registeredAt,
+      });
+      await supabase
+        .from('tokens')
+        .update({ is_onboarded: true, student_id: studentId, student_name: input.fullName.trim() })
+        .eq('token', cleanToken);
+    } catch (err) {
+      console.warn('Failed to persist addOrUpdateStudent to Supabase:', err);
+    }
+
+    return newStudent;
+  };
+
+  const markAttendance = async (studentToken: string, date: string, present: boolean): Promise<void> => {
+    const cleanToken = studentToken.trim().toUpperCase();
+    const student = students.find((s) => s.tokenId.toUpperCase() === cleanToken || s.id === cleanToken);
+    if (!student) {
+      throw new Error(`Student with token "${studentToken}" not found.`);
+    }
+    await adminToggleAttendance(student.id, date, present ? 'PRESENT' : 'ABSENT');
+  };
+
+  const adjustCodexPoints = async (studentToken: string, delta: number): Promise<void> => {
+    const cleanToken = studentToken.trim().toUpperCase();
+    const student = students.find((s) => s.tokenId.toUpperCase() === cleanToken || s.id === cleanToken);
+    if (!student) {
+      throw new Error(`Student with token "${studentToken}" not found.`);
+    }
+
+    const newBalance = Math.max(0, student.codexBalance + delta);
+
+    setStudents((prev) =>
+      prev.map((s) => (s.id === student.id ? { ...s, codexBalance: newBalance } : s))
+    );
+
+    const txType: 'EARNED' | 'REDEEMED' = delta >= 0 ? 'EARNED' : 'REDEEMED';
+    const newTx: CodexTransaction = {
+      id: `tx_${Date.now()}`,
+      studentId: student.id,
+      amount: Math.abs(delta),
+      type: txType,
+      reason: `Admin adjustment (${delta > 0 ? '+' : ''}${delta} points)`,
+      date: todayStr,
+    };
+    setTransactions((prev) => [newTx, ...prev]);
+
+    try {
+      await supabase.from('students').update({ codex_balance: newBalance }).eq('id', student.id);
+      await supabase.from('codex_transactions').insert({
+        id: newTx.id,
+        student_id: student.id,
+        amount: Math.abs(delta),
+        type: txType,
+        reason: newTx.reason,
+        date: todayStr,
+      });
+    } catch (err) {
+      console.warn('Failed to persist adjustCodexPoints to Supabase:', err);
+    }
+  };
+
+  const exportAttendance = async (endDate?: string): Promise<void> => {
+    const wb = XLSX.utils.book_new();
+    const headers = [
+      'Student Name',
+      'Token Code',
+      'Class',
+      'Section',
+      'School Name',
+      'Parent Contact',
+      'Status',
+      'Check-in Time',
+      'CODEX Points',
+    ];
+
+    const rows = students.map((stu) => {
+      const att = attendanceRecords.find((a) => a.studentId === stu.id && a.date === todayStr);
+      return [
+        stu.fullName,
+        stu.tokenId,
+        stu.grade,
+        stu.section,
+        stu.schoolName,
+        stu.parentPhone,
+        att?.status || 'ABSENT',
+        att?.checkInTime || '-',
+        stu.codexBalance,
+      ];
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    XLSX.utils.book_append_sheet(wb, ws, `Attendance_${todayStr}`);
+    XLSX.writeFile(wb, `Oxford_Camp_Attendance_${todayStr}.xlsx`);
+  };
+
   const resetDemoData = async () => {
     // Clear only session state from localStorage
     localStorage.removeItem(STORAGE_KEYS.CURRENT_STUDENT_ID);
@@ -1045,6 +1191,10 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
         adminGenerateToken,
         adminRevokeToken,
         exportAttendanceCSV,
+        addOrUpdateStudent,
+        markAttendance,
+        adjustCodexPoints,
+        exportAttendance,
         resetDemoData,
         refreshFromBackend,
       }}
