@@ -896,7 +896,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Persist to Supabase
     try {
-      await supabase.from('attendance_records').upsert({
+      const { error } = await supabase.from('attendance_records').upsert({
         id: recId,
         student_id: studentId,
         date,
