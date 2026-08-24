@@ -204,7 +204,7 @@ export const AttendanceRegisterTable: React.FC = () => {
                   <ArrowUpDown className="w-3 h-3 text-[#505054]" />
                 </div>
               </th>
-              <th className="px-4 py-3.5">Token Code</th>
+              <th className="px-4 py-3.5">Token & Auth</th>
               <th
                 onClick={() => toggleSort('grade')}
                 className="px-4 py-3.5 cursor-pointer hover:text-[#F5F5F7] transition-colors select-none"
@@ -254,11 +254,19 @@ export const AttendanceRegisterTable: React.FC = () => {
                       </div>
                     </td>
 
-                    {/* Token Code */}
+                    {/* Token Code & Password */}
                     <td className="px-4 py-3 font-mono font-medium text-[#8E8E93]">
-                      <span className="bg-[#121212] px-2 py-0.5 rounded border border-[#3A3A3C] text-[#F5F5F7]">
-                        {student.tokenId}
-                      </span>
+                      <div className="space-y-1">
+                        <div className="bg-[#121212] px-2 py-0.5 rounded border border-[#3A3A3C] text-[#F5F5F7] inline-block">
+                          {student.tokenId}
+                        </div>
+                        <div className="text-[10px] flex items-center space-x-1" title="Student Password">
+                          <KeyRound className="w-3 h-3 text-[#505054]" />
+                          <span className={student.password ? "text-[#0A84FF]" : "text-[#505054] italic"}>
+                            {student.password || 'No Password'}
+                          </span>
+                        </div>
+                      </div>
                     </td>
 
                     {/* Class & Sec */}

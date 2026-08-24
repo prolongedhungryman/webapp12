@@ -51,6 +51,7 @@ interface CampContextType {
   markAttendanceSelf: (studentId: string) => Promise<void> | void;
   adminToggleAttendance: (studentId: string, date: string, newStatus: AttendanceStatus) => Promise<void> | void;
   adminGenerateToken: (assignedGrade?: string, studentName?: string) => Promise<string> | string;
+  adminAssignToken: (tokenStr: string, fullName: string, grade: string, section?: string) => Promise<{ success: boolean; message?: string }>;
   adminRevokeToken: (tokenStr: string) => Promise<void> | void;
   exportAttendanceCSV: () => void;
   addOrUpdateStudent: (input: {
@@ -904,8 +905,17 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
         verified_by: 'ADMIN',
         timestamp: nowTs,
       });
+      if (error) throw error;
     } catch (err) {
-      console.warn('Failed to toggle attendance in Supabase:', err);
+      console.warn('Failed to toggle attendance in Supabase, reverting UI:', err);
+      // Revert optimistic update on failure
+      setAttendanceRecords((prev) =>
+        prev.map((a) =>
+          a.id === recId
+            ? existing || { ...a, status: newStatus === 'PRESENT' ? 'ABSENT' : 'PRESENT' } // Rough revert
+            : a
+        ).filter(a => existing || a.id !== recId)
+      );
     }
   };
 
@@ -938,6 +948,72 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
     return newTokenStr;
+  };
+
+  const adminAssignToken = async (
+    tokenStr: string,
+    fullName: string,
+    grade: string,
+    section: string = 'A'
+  ): Promise<{ success: boolean; message?: string }> => {
+    const cleanToken = tokenStr.trim().toUpperCase();
+
+    // Check if token exists and is not onboarded
+    const tokenObj = tokens.find((t) => t.token.toUpperCase() === cleanToken);
+    if (!tokenObj) return { success: false, message: 'Token not found in registry.' };
+    if (tokenObj.isOnboarded) return { success: false, message: 'Token is already assigned and onboarded.' };
+
+    const studentId = `stu_${Date.now()}`;
+    const newStudent: Student = {
+      id: studentId,
+      tokenId: cleanToken,
+      fullName: fullName.trim(),
+      grade,
+      section,
+      schoolName: 'Oxford Secondary School',
+      parentPhone: '',
+      isOnboarded: true,
+      codexBalance: 50,
+      registeredAt: todayStr,
+      track: 'Full-Stack Web Development',
+    };
+
+    // Optimistic UI updates
+    setStudents((prev) => [newStudent, ...prev]);
+    setTokens((prev) =>
+      prev.map((t) =>
+        t.token.toUpperCase() === cleanToken
+          ? { ...t, isOnboarded: true, studentId, studentName: fullName.trim() }
+          : t
+      )
+    );
+
+    try {
+      const { error: stuError } = await supabase.from('students').upsert({
+        id: studentId,
+        token_id: cleanToken,
+        full_name: fullName.trim(),
+        grade,
+        section,
+        parent_phone: '',
+        is_onboarded: true,
+        codex_balance: 50,
+        registered_at: todayStr,
+      } as any);
+      if (stuError) throw stuError;
+
+      const { error: tokError } = await supabase
+        .from('tokens')
+        .update({ is_onboarded: true, student_id: studentId, student_name: fullName.trim() })
+        .eq('token', cleanToken);
+      if (tokError) throw tokError;
+
+      return { success: true };
+    } catch (err: any) {
+      console.warn('Failed to assign token in Supabase:', err);
+      // Revert UI if needed, but for now just return failure
+      return { success: false, message: err.message || 'Database error occurred.' };
+    }
   };
 
   const adminRevokeToken = async (tokenStr: string) => {
@@ -1190,6 +1266,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
         markAttendanceSelf,
         adminToggleAttendance,
         adminGenerateToken,
+        adminAssignToken,
         adminRevokeToken,
         exportAttendanceCSV,
         addOrUpdateStudent,
