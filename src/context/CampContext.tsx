@@ -25,6 +25,17 @@ interface CampContextType {
   openStudentAuth: () => void;
   openAdminAuth: () => void;
   loginWithToken: (tokenInput: string) => Promise<{ success: boolean; needsOnboarding?: boolean; message?: string }>;
+  signupStudent: (data: {
+    tokenCode: string;
+    password: string;
+    fullName: string;
+    grade: string;
+    section: string;
+  }) => Promise<{ success: boolean; message?: string }>;
+  loginStudentWithPassword: (
+    tokenCode: string,
+    passwordInput: string
+  ) => Promise<{ success: boolean; message?: string }>;
   loginAdmin: (user: string, pass: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   completeOnboarding: (data: {
@@ -82,6 +93,7 @@ const mapDbStudentToStudent = (row: any): Student => ({
   registeredAt: row.registered_at,
   avatarSeed: row.avatar_seed || undefined,
   track: row.track || 'Full-Stack Web Development',
+  password: row.password || undefined,
 });
 
 const mapDbTokenToToken = (row: any): TokenRecord => ({
@@ -276,7 +288,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const currentStudent = useMemo(() => {
     if (!currentStudentId) return null;
-    return students.find((s) => s.id === currentStudentId) || null;
+    return students.find((s) => s.id === currentStudentId || s.tokenId.toUpperCase() === currentStudentId.toUpperCase()) || null;
   }, [students, currentStudentId]);
 
   // Attendance metrics calculation
@@ -396,6 +408,156 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAdminLoggedIn(false);
     setPendingOnboardingToken(null);
     setAuthModalOpen(false);
+    setTimeout(() => markAttendanceSelf(student.id), 100);
+    return { success: true };
+  };
+
+  const signupStudent = async (data: {
+    tokenCode: string;
+    password: string;
+    fullName: string;
+    grade: string;
+    section: string;
+  }): Promise<{ success: boolean; message?: string }> => {
+    if (!checkRateLimit('signup_student', { maxRequests: 5, windowMs: 60000 })) {
+      return { success: false, message: 'Too many signup attempts. Please wait a moment.' };
+    }
+
+    const cleanCode = data.tokenCode.trim().toUpperCase();
+    const cleanPass = data.password.trim();
+
+    if (!cleanCode || !cleanPass) {
+      return { success: false, message: 'Please enter your login code and password.' };
+    }
+
+    if (!data.fullName.trim()) {
+      return { success: false, message: 'Please enter your full name.' };
+    }
+
+    // Check if student with token already exists
+    const existingStu = students.find((s) => s.tokenId.toUpperCase() === cleanCode);
+    if (existingStu && existingStu.password && existingStu.password !== cleanPass) {
+      return { success: false, message: 'This login code is already registered with a different password. Please log in.' };
+    }
+
+    const studentId = existingStu?.id || `stu_${Date.now()}`;
+    const newStudent: Student = {
+      id: studentId,
+      tokenId: cleanCode,
+      fullName: data.fullName.trim(),
+      grade: data.grade,
+      section: data.section,
+      schoolName: existingStu?.schoolName || 'Oxford Secondary School',
+      parentPhone: existingStu?.parentPhone || '',
+      isOnboarded: true,
+      codexBalance: existingStu ? existingStu.codexBalance : 50,
+      registeredAt: existingStu?.registeredAt || todayStr,
+      track: existingStu?.track || 'Full-Stack Web Development',
+      password: cleanPass,
+    };
+
+    setStudents((prev) => [newStudent, ...prev.filter((s) => s.id !== studentId)]);
+    setTokens((prev) =>
+      prev.map((t) =>
+        t.token.toUpperCase() === cleanCode
+          ? { ...t, isOnboarded: true, studentId, studentName: data.fullName.trim() }
+          : t
+      )
+    );
+
+    setCurrentStudentId(studentId);
+    setIsAdminLoggedIn(false);
+    setPendingOnboardingToken(null);
+    setAuthModalOpen(false);
+
+    setTimeout(() => markAttendanceSelf(studentId), 100);
+
+    try {
+      await supabase.from('students').upsert({
+        id: studentId,
+        token_id: cleanCode,
+        full_name: data.fullName.trim(),
+        grade: data.grade,
+        section: data.section,
+        password: cleanPass,
+        is_onboarded: true,
+        codex_balance: newStudent.codexBalance,
+        registered_at: newStudent.registeredAt,
+      });
+      await supabase
+        .from('tokens')
+        .update({ is_onboarded: true, student_id: studentId, student_name: data.fullName.trim() })
+        .eq('token', cleanCode);
+    } catch (err) {
+      console.warn('Supabase signup sync notice:', err);
+    }
+
+    return { success: true };
+  };
+
+  const loginStudentWithPassword = async (
+    tokenCode: string,
+    passwordInput: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    if (!checkRateLimit('login_student', { maxRequests: 5, windowMs: 60000 })) {
+      return { success: false, message: 'Too many login attempts. Please wait a moment.' };
+    }
+
+    const cleanCode = tokenCode.trim().toUpperCase();
+    const cleanPass = passwordInput.trim();
+
+    if (!cleanCode || !cleanPass) {
+      return { success: false, message: 'Please enter your login code and password.' };
+    }
+
+    let student = students.find(
+      (s) => s.tokenId.toUpperCase() === cleanCode || s.id.toUpperCase() === cleanCode
+    );
+
+    if (!student) {
+      try {
+        const { data } = await supabase
+          .from('students')
+          .select('*')
+          .or(`token_id.eq.${cleanCode},id.eq.${cleanCode}`)
+          .single();
+        if (data) {
+          student = mapDbStudentToStudent(data);
+          setStudents((prev) => [student!, ...prev.filter((s) => s.id !== student!.id)]);
+        }
+      } catch {
+        // Not found in Supabase
+      }
+    }
+
+    if (!student) {
+      const tokenObj = tokens.find((t) => t.token.toUpperCase() === cleanCode);
+      if (tokenObj) {
+        return {
+          success: false,
+          message: 'This login code has not been registered yet. Please click "Sign Up" to register your account.',
+        };
+      }
+      return {
+        success: false,
+        message: 'Invalid login code. Please check your token code or contact your teacher.',
+      };
+    }
+
+    if (student.password && student.password !== cleanPass) {
+      return { success: false, message: 'Incorrect password. Please try again.' };
+    }
+
+    if (!student.password) {
+      student.password = cleanPass;
+      updateStudentProfile(student.id, { password: cleanPass });
+    }
+
+    setCurrentStudentId(student.id);
+    setIsAdminLoggedIn(false);
+    setPendingOnboardingToken(null);
+    setAuthModalOpen(false);
+
     setTimeout(() => markAttendanceSelf(student.id), 100);
     return { success: true };
   };
@@ -871,6 +1033,8 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
         openStudentAuth,
         openAdminAuth,
         loginWithToken,
+        signupStudent,
+        loginStudentWithPassword,
         loginAdmin,
         logout,
         completeOnboarding,

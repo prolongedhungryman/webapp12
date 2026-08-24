@@ -13,6 +13,7 @@ export interface Student {
   registeredAt: string;
   avatarSeed?: string;
   track?: string;
+  password?: string;
 }
 
 export interface TokenRecord {

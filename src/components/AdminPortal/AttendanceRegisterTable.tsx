@@ -14,6 +14,7 @@ import {
   Clock,
   ArrowUpDown
 } from 'lucide-react';
+import { CAMP_SECTIONS } from '../../lib/campOptions';
 
 export const AttendanceRegisterTable: React.FC = () => {
   const {
@@ -26,6 +27,7 @@ export const AttendanceRegisterTable: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [gradeFilter, setGradeFilter] = useState('ALL');
+  const [sectionFilter, setSectionFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PRESENT' | 'ABSENT'>('ALL');
   const [sortField, setSortField] = useState<'name' | 'time' | 'grade'>('name');
   const [sortAsc, setSortAsc] = useState(true);
@@ -70,10 +72,13 @@ export const AttendanceRegisterTable: React.FC = () => {
         // Grade filter
         const matchesGrade = gradeFilter === 'ALL' || row.student.grade === gradeFilter;
 
+        // Section filter
+        const matchesSection = sectionFilter === 'ALL' || row.student.section.toLowerCase() === sectionFilter.toLowerCase();
+
         // Status filter
         const matchesStatus = statusFilter === 'ALL' || row.status === statusFilter;
 
-        return matchesSearch && matchesGrade && matchesStatus;
+        return matchesSearch && matchesGrade && matchesSection && matchesStatus;
       })
       .sort((a, b) => {
         let comparison = 0;
@@ -88,7 +93,7 @@ export const AttendanceRegisterTable: React.FC = () => {
         }
         return sortAsc ? comparison : -comparison;
       });
-  }, [studentRows, searchQuery, gradeFilter, statusFilter, sortField, sortAsc]);
+  }, [studentRows, searchQuery, gradeFilter, sectionFilter, statusFilter, sortField, sortAsc]);
 
   const toggleSort = (field: 'name' | 'time' | 'grade') => {
     if (sortField === field) {
@@ -126,15 +131,15 @@ export const AttendanceRegisterTable: React.FC = () => {
       </div>
 
       {/* Filter & Search Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         {/* Search input */}
-        <div className="sm:col-span-2 relative">
+        <div className="relative">
           <input
             id="input-admin-search"
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by student name, token, phone..."
+            placeholder="Search student, token..."
             className="w-full pl-9 pr-4 py-2 bg-[#121212] border border-[#3A3A3C] rounded-lg text-xs text-[#F5F5F7] placeholder-[#505054] focus:outline-none focus:border-[#0A84FF] transition-all"
           />
           <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-[#8E8E93]" />
@@ -151,6 +156,21 @@ export const AttendanceRegisterTable: React.FC = () => {
             <option value="ALL">All Classes</option>
             {distinctGrades.map((g) => (
               <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Section Filter */}
+        <div className="relative">
+          <select
+            id="select-filter-section"
+            value={sectionFilter}
+            onChange={(e) => setSectionFilter(e.target.value)}
+            className="w-full pl-3 pr-8 py-2 bg-[#121212] border border-[#3A3A3C] rounded-lg text-xs text-[#F5F5F7] focus:outline-none focus:border-[#0A84FF] transition-all"
+          >
+            <option value="ALL">All Sections</option>
+            {CAMP_SECTIONS.map((sec) => (
+              <option key={sec} value={sec}>{sec}</option>
             ))}
           </select>
         </div>
