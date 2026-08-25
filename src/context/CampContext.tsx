@@ -480,11 +480,12 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
         full_name: data.fullName.trim(),
         grade: data.grade,
         section: data.section,
+        parent_phone: existingStu?.parentPhone || '',
         password: cleanPass,
         is_onboarded: true,
         codex_balance: newStudent.codexBalance,
         registered_at: newStudent.registeredAt,
-      } as any);
+      });
       await supabase
         .from('tokens')
         .update({ is_onboarded: true, student_id: studentId, student_name: data.fullName.trim() })
@@ -745,6 +746,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (updates.parentPhone !== undefined) dbUpdates.parent_phone = updates.parentPhone;
       if (updates.track !== undefined) dbUpdates.track = updates.track;
       if (updates.codexBalance !== undefined) dbUpdates.codex_balance = updates.codexBalance;
+      if (updates.password !== undefined) dbUpdates.password = updates.password;
       dbUpdates.updated_at = new Date().toISOString();
 
       await supabase.from('students').update(dbUpdates).eq('id', studentId);
@@ -1121,7 +1123,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
         codex_balance: input.points,
         is_onboarded: true,
         registered_at: newStudent.registeredAt,
-      } as any);
+      });
       await supabase
         .from('tokens')
         .update({ is_onboarded: true, student_id: studentId, student_name: input.fullName.trim() })

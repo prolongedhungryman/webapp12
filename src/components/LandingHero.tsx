@@ -17,10 +17,7 @@ import {
 } from 'lucide-react';
 
 export const LandingHero: React.FC = () => {
-  const { openStudentAuth, openAdminAuth, tokens } = useCamp();
-
-  const sampleEnrolledToken = 'OXF-2026-A891';
-  const sampleNewToken = tokens.find((t) => !t.isOnboarded)?.token || 'OXF-2026-NEW99';
+  const { openStudentAuth, openAdminAuth } = useCamp();
 
   return (
     <div id="landing-hero-view" className="relative min-h-[calc(100vh-4rem)] flex flex-col justify-between overflow-hidden">
@@ -116,46 +113,6 @@ export const LandingHero: React.FC = () => {
             <div className="mt-1 text-xs text-[#8E8E93]">
               Comprehensive live attendance registry, manual overrides, CSV reporting, and token generation.
             </div>
-          </div>
-        </div>
-
-        {/* Quick Demo Evaluation Panel */}
-        <div className="mt-10 p-4 rounded-xl bg-[#1E1E1E] border border-[#3A3A3C] text-xs">
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-[#3A3A3C]">
-            <div className="flex items-center space-x-2 font-mono text-[#F5F5F7] font-medium">
-              <Terminal className="w-4 h-4 text-[#0A84FF]" />
-              <span>TEST CREDENTIALS & DEMO TOKENS</span>
-            </div>
-            <span className="text-[11px] text-[#8E8E93]">Click any item to open modal</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            <button
-              onClick={openStudentAuth}
-              className="text-left p-2.5 rounded-lg bg-[#121212] border border-[#3A3A3C] hover:border-[#0A84FF]/60 transition-colors"
-            >
-              <div className="text-[11px] text-[#8E8E93] uppercase font-mono">Enrolled Student Token</div>
-              <div className="font-mono text-xs text-[#F5F5F7] font-semibold mt-0.5">{sampleEnrolledToken}</div>
-              <div className="text-[10px] text-[#8E8E93] mt-0.5">Aarav Sharma (Grade 10)</div>
-            </button>
-
-            <button
-              onClick={openStudentAuth}
-              className="text-left p-2.5 rounded-lg bg-[#121212] border border-[#3A3A3C] hover:border-[#30D158]/60 transition-colors"
-            >
-              <div className="text-[11px] text-[#8E8E93] uppercase font-mono">New Student Onboarding</div>
-              <div className="font-mono text-xs text-[#30D158] font-semibold mt-0.5">{sampleNewToken}</div>
-              <div className="text-[10px] text-[#8E8E93] mt-0.5">Triggers registration modal</div>
-            </button>
-
-            <button
-              onClick={openAdminAuth}
-              className="text-left p-2.5 rounded-lg bg-[#121212] border border-[#3A3A3C] hover:border-[#0A84FF]/60 transition-colors"
-            >
-              <div className="text-[11px] text-[#8E8E93] uppercase font-mono">Administrator Login</div>
-              <div className="font-mono text-xs text-[#0A84FF] font-semibold mt-0.5">admin</div>
-              <div className="text-[10px] text-[#8E8E93] mt-0.5">Password: HenryCabil@26</div>
-            </button>
           </div>
         </div>
 

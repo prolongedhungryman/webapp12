@@ -3,6 +3,7 @@ import { useCamp } from '../../context/CampContext';
 import { MetricsBar } from './MetricsBar';
 import { AttendanceRegisterTable } from './AttendanceRegisterTable';
 import { TokenManagerPanel } from './TokenManagerPanel';
+import { RegisteredUsersPanel } from './RegisteredUsersPanel';
 import {
   Shield,
   Calendar,
@@ -14,12 +15,13 @@ import {
   CheckCircle,
   Clock,
   LogOut,
-  ExternalLink
+  ExternalLink,
+  Users
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
   const { todayStr, logout, resetDemoData } = useCamp();
-  const [activeAdminView, setActiveAdminView] = useState<'register' | 'tokens' | 'reports'>('register');
+  const [activeAdminView, setActiveAdminView] = useState<'register' | 'tokens' | 'reports' | 'users'>('register');
   const [resetNotice, setResetNotice] = useState(false);
 
   const handleResetData = () => {
@@ -130,6 +132,18 @@ export const AdminDashboard: React.FC = () => {
           <Layers className="w-3.5 h-3.5" />
           <span>Student Reports</span>
         </button>
+
+        <button
+          onClick={() => setActiveAdminView('users')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+            activeAdminView === 'users'
+              ? 'bg-[#0A84FF] text-white shadow-sm'
+              : 'text-[#8E8E93] hover:text-[#F5F5F7] hover:bg-[#1E1E1E]'
+          }`}
+        >
+          <Users className="w-3.5 h-3.5" />
+          <span>Registered Users</span>
+        </button>
       </div>
 
       {/* Active Admin Section */}
@@ -137,6 +151,7 @@ export const AdminDashboard: React.FC = () => {
         {activeAdminView === 'register' && <AttendanceRegisterTable />}
         {activeAdminView === 'tokens' && <TokenManagerPanel />}
         {activeAdminView === 'reports' && <AttendanceRegisterTable />}
+        {activeAdminView === 'users' && <RegisteredUsersPanel />}
       </div>
 
     </div>
