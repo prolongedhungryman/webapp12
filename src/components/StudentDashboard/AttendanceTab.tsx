@@ -7,7 +7,7 @@ interface AttendanceTabProps {
 }
 
 export const AttendanceTab: React.FC<AttendanceTabProps> = ({ onNavigateTab }) => {
-  const { currentStudent, attendanceRecords, todayStr, markAttendanceSelf } = useCamp();
+  const { currentStudent, attendanceRecords, todayStr, markAttendanceSelf, students } = useCamp();
 
   if (!currentStudent) return null;
 
@@ -18,7 +18,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({ onNavigateTab }) =
   const isCheckedInToday = todayRecord?.status === 'PRESENT';
 
   // Format today's date nicely (e.g., Tuesday, July 14 or Monday, August 17)
-  const formattedToday = new Date('2026-08-17T09:00:00').toLocaleDateString('en-US', {
+  const formattedToday = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
@@ -32,6 +32,61 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({ onNavigateTab }) =
   const totalSessions = studentHistory.length;
   const presentSessions = studentHistory.filter((s) => s.status === 'PRESENT').length;
   const attendanceRate = totalSessions > 0 ? ((presentSessions / totalSessions) * 100).toFixed(1) : '100.0';
+
+  // Dynamic Streak Calculation
+  const calculateStreak = () => {
+    if (studentHistory.length === 0) return 0;
+    
+    // Check if today's record exists and is ABSENT. If so, streak is 0.
+    const todayRec = studentHistory.find(h => h.date === todayStr);
+    if (todayRec && todayRec.status === 'ABSENT') {
+      return 0;
+    }
+    
+    let streakCount = 0;
+    // Start scanning from today if present today, otherwise start from yesterday
+    let checkDate = todayRec && todayRec.status === 'PRESENT' 
+      ? new Date(todayStr + 'T09:00:00') 
+      : new Date(Date.now() - 86400000);
+      
+    while (true) {
+      const checkDateStr = checkDate.toISOString().split('T')[0];
+      const rec = studentHistory.find(h => h.date === checkDateStr);
+      if (rec && rec.status === 'PRESENT') {
+        streakCount++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else {
+        break; // Gap or ABSENT breaks the streak
+      }
+    }
+    return streakCount;
+  };
+  const dynamicStreak = calculateStreak();
+
+  // Dynamic Rank Calculation
+  const calculateRank = () => {
+    if (students.length <= 1) return '---';
+    
+    // Check if everyone has the same codex balance
+    const firstBalance = students[0].codexBalance;
+    const allSame = students.every(s => s.codexBalance === firstBalance);
+    if (allSame) return '---';
+    
+    // Sort students by codex balance descending
+    const sorted = [...students].sort((a, b) => b.codexBalance - a.codexBalance);
+    
+    let rank = 1;
+    for (let i = 0; i < sorted.length; i++) {
+      if (i > 0 && sorted[i].codexBalance < sorted[i - 1].codexBalance) {
+        rank = i + 1;
+      }
+      if (sorted[i].id === currentStudent.id) {
+        return `#${rank.toString().padStart(2, '0')}`;
+      }
+    }
+    return '---';
+  };
+  const dynamicRank = calculateRank();
 
   return (
     <div id="student-attendance-tab" className="grid grid-cols-1 xl:grid-cols-12 gap-6 animate-in fade-in duration-150">
@@ -82,7 +137,9 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({ onNavigateTab }) =
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-[#1E1E1E] border border-[#3A3A3C] rounded p-4">
             <div className="text-[10px] text-[#8E8E93] uppercase font-bold tracking-widest">Streak</div>
-            <div className="text-xl font-bold mt-1 text-[#F5F5F7]">12 Days</div>
+            <div className="text-xl font-bold mt-1 text-[#F5F5F7]">
+              {dynamicStreak} {dynamicStreak === 1 ? 'Day' : 'Days'}
+            </div>
           </div>
           <div className="bg-[#1E1E1E] border border-[#3A3A3C] rounded p-4">
             <div className="text-[10px] text-[#8E8E93] uppercase font-bold tracking-widest">Attendance Rate</div>
@@ -90,7 +147,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({ onNavigateTab }) =
           </div>
           <div className="bg-[#1E1E1E] border border-[#3A3A3C] rounded p-4">
             <div className="text-[10px] text-[#8E8E93] uppercase font-bold tracking-widest">Rank</div>
-            <div className="text-xl font-bold mt-1 text-[#0A84FF]">#04</div>
+            <div className="text-xl font-bold mt-1 text-[#0A84FF]">{dynamicRank}</div>
           </div>
         </div>
 

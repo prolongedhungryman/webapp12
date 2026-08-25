@@ -3,10 +3,11 @@ import { useCamp } from '../../context/CampContext';
 import { ProfileTab } from './ProfileTab';
 import { AttendanceTab } from './AttendanceTab';
 import { CodexRewardsTab } from './CodexRewardsTab';
+import { EarnCodexTab } from './EarnCodexTab';
 import { CodexBadgeIcon } from '../CodexBadgeIcon';
 import { CalendarCheck2, Award, User, KeyRound, Copy, Check, LogOut, Sparkles, BookOpen, Layers } from 'lucide-react';
 
-export type StudentDashboardTab = 'attendance' | 'codex' | 'profile';
+export type StudentDashboardTab = 'attendance' | 'codex' | 'earn' | 'profile';
 
 export const StudentDashboard: React.FC = () => {
   const { currentStudent, logout } = useCamp();
@@ -58,6 +59,19 @@ export const StudentDashboard: React.FC = () => {
           >
             <CalendarCheck2 className="w-4 h-4 opacity-80" />
             <span>Attendance</span>
+          </button>
+
+          <button
+            id="nav-tab-earn"
+            onClick={() => setActiveTab('earn')}
+            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+              activeTab === 'earn'
+                ? 'bg-[#1E1E1E] text-[#F5F5F7] shadow-sm'
+                : 'text-[#8E8E93] hover:bg-[#1E1E1E] hover:text-[#F5F5F7]'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 opacity-80" />
+            <span>Earn CODEX</span>
           </button>
 
           <button
@@ -166,6 +180,7 @@ export const StudentDashboard: React.FC = () => {
         <div className="flex-1 p-4 sm:p-8 overflow-y-auto">
           {activeTab === 'attendance' && <AttendanceTab onNavigateTab={setActiveTab} />}
           {activeTab === 'codex' && <CodexRewardsTab />}
+          {activeTab === 'earn' && <EarnCodexTab />}
           {activeTab === 'profile' && <ProfileTab />}
         </div>
       </main>

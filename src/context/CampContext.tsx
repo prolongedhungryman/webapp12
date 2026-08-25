@@ -67,6 +67,8 @@ interface CampContextType {
   exportAttendance: (endDate?: string) => Promise<void>;
   resetDemoData: () => Promise<void> | void;
   refreshFromBackend: () => Promise<void>;
+  redeemCodexReward: (perkId: string, perkTitle: string, cost: number) => Promise<{ success: boolean; message?: string }>;
+  completeChallenge: (challengeId: string, challengeTitle: string, reward: number) => Promise<{ success: boolean; message?: string }>;
 }
 
 const CampContext = createContext<CampContextType | undefined>(undefined);
@@ -641,7 +643,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     const initialAttendance: AttendanceRecord = {
-      id: `att_${newStudentId}_today`,
+      id: `att_${newStudentId}_${todayStr}`,
       studentId: newStudentId,
       date: todayStr,
       status: 'ABSENT',
@@ -719,7 +721,45 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else if (rpcResult && typeof rpcResult === 'object') {
         const persisted = rpcResult as any;
         if (persisted.id) {
-          setCurrentStudentId(persisted.id);
+          const dbStudent = mapDbStudentToStudent(persisted);
+          
+          // Replace optimistic student with backend one
+          setStudents((prev) => [dbStudent, ...prev.filter((s) => s.id !== newStudentId && s.id !== dbStudent.id)]);
+          
+          setTokens((prev) =>
+            prev.map((t) =>
+              t.token.toUpperCase() === tokenCode
+                ? { ...t, isOnboarded: true, studentId: dbStudent.id, studentName: dbStudent.fullName }
+                : t
+            )
+          );
+          
+          setAttendanceRecords((prev) => [
+            {
+              id: `att_${dbStudent.id}_${todayStr}`,
+              studentId: dbStudent.id,
+              date: todayStr,
+              status: 'ABSENT',
+              checkInTime: null,
+              verifiedBy: 'ADMIN',
+              timestamp: Date.now(),
+            },
+            ...prev.filter((a) => a.studentId !== newStudentId && a.studentId !== dbStudent.id)
+          ]);
+
+          setTransactions((prev) => [
+            {
+              id: `tx_${Date.now()}`,
+              studentId: dbStudent.id,
+              amount: 50,
+              type: 'EARNED',
+              reason: 'Welcome Registration Grant (CODEX Points)',
+              date: todayStr,
+            },
+            ...prev.filter((tx) => tx.studentId !== newStudentId)
+          ]);
+
+          setCurrentStudentId(dbStudent.id);
         }
       }
     } catch (err) {
@@ -745,7 +785,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (updates.schoolName !== undefined) dbUpdates.school_name = updates.schoolName;
       if (updates.parentPhone !== undefined) dbUpdates.parent_phone = updates.parentPhone;
       if (updates.track !== undefined) dbUpdates.track = updates.track;
-      if (updates.codexBalance !== undefined) dbUpdates.codex_balance = updates.codexBalance;
+      // Strip codexBalance to prevent security issues/tampering from the frontend profile form
       if (updates.password !== undefined) dbUpdates.password = updates.password;
       dbUpdates.updated_at = new Date().toISOString();
 
@@ -786,7 +826,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
     } else {
       const newRec: AttendanceRecord = {
-        id: `att_${studentId}_${Date.now()}`,
+        id: `att_${studentId}_${todayStr}`,
         studentId,
         date: todayStr,
         status: 'PRESENT',
@@ -797,10 +837,10 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAttendanceRecords((prev) => [newRec, ...prev]);
     }
 
-    // Award +10 CODEX tokens
+    // Award +50 CODEX tokens (per-day login grants 50 codex points)
     setStudents((prev) =>
       prev.map((s) =>
-        s.id === studentId ? { ...s, codexBalance: s.codexBalance + 10 } : s
+        s.id === studentId ? { ...s, codexBalance: s.codexBalance + 50 } : s
       )
     );
 
@@ -808,7 +848,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const newTx: CodexTransaction = {
       id: `tx_${Date.now()}`,
       studentId,
-      amount: 10,
+      amount: 50,
       type: 'EARNED',
       reason: `Daily Attendance Check-in (${todayStr})`,
       date: todayStr,
@@ -827,7 +867,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('mark_attendance_self RPC fallback:', error.message);
         // Direct table upsert fallback
         await supabase.from('attendance_records').upsert({
-          id: existing?.id || `att_${studentId}_${Date.now()}`,
+          id: existing?.id || `att_${studentId}_${todayStr}`,
           student_id: studentId,
           date: todayStr,
           status: 'PRESENT',
@@ -839,7 +879,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (currentStu) {
           await supabase
             .from('students')
-            .update({ codex_balance: currentStu.codexBalance + 10 })
+            .update({ codex_balance: currentStu.codexBalance + 50 })
             .eq('id', studentId);
         }
       }
@@ -1183,6 +1223,120 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const redeemCodexReward = async (
+    perkId: string,
+    perkTitle: string,
+    cost: number
+  ): Promise<{ success: boolean; message?: string }> => {
+    if (!currentStudent) return { success: false, message: 'No student logged in.' };
+    if (currentStudent.codexBalance < cost) {
+      return { success: false, message: 'Insufficient CODEX points.' };
+    }
+
+    const newBalance = currentStudent.codexBalance - cost;
+
+    // Optimistic UI updates
+    setStudents((prev) =>
+      prev.map((s) => (s.id === currentStudent.id ? { ...s, codexBalance: newBalance } : s))
+    );
+
+    const newTx: CodexTransaction = {
+      id: `tx_${Date.now()}`,
+      studentId: currentStudent.id,
+      amount: cost,
+      type: 'REDEEMED',
+      reason: `Purchased: ${perkTitle}`,
+      date: todayStr,
+    };
+    setTransactions((prev) => [newTx, ...prev]);
+
+    try {
+      const { error: stuError } = await supabase
+        .from('students')
+        .update({ codex_balance: newBalance })
+        .eq('id', currentStudent.id);
+      if (stuError) throw stuError;
+
+      const { error: txError } = await supabase.from('codex_transactions').insert({
+        id: newTx.id,
+        student_id: currentStudent.id,
+        amount: cost,
+        type: 'REDEEMED',
+        reason: newTx.reason,
+        date: todayStr,
+      });
+      if (txError) throw txError;
+
+      return { success: true };
+    } catch (err: any) {
+      console.warn('Failed to redeem reward in Supabase, reverting UI:', err);
+      setStudents((prev) =>
+        prev.map((s) => (s.id === currentStudent.id ? { ...s, codexBalance: currentStudent.codexBalance } : s))
+      );
+      setTransactions((prev) => prev.filter((tx) => tx.id !== newTx.id));
+      return { success: false, message: err.message || 'Database error occurred.' };
+    }
+  };
+
+  const completeChallenge = async (
+    challengeId: string,
+    challengeTitle: string,
+    reward: number
+  ): Promise<{ success: boolean; message?: string }> => {
+    if (!currentStudent) return { success: false, message: 'No student logged in.' };
+
+    const alreadyDone = transactions.some(
+      (tx) => tx.studentId === currentStudent.id && tx.reason === `Challenge Completed: ${challengeTitle}`
+    );
+    if (alreadyDone) {
+      return { success: false, message: 'You have already completed this challenge!' };
+    }
+
+    const newBalance = currentStudent.codexBalance + reward;
+
+    // Optimistic UI updates
+    setStudents((prev) =>
+      prev.map((s) => (s.id === currentStudent.id ? { ...s, codexBalance: newBalance } : s))
+    );
+
+    const newTx: CodexTransaction = {
+      id: `tx_${Date.now()}`,
+      studentId: currentStudent.id,
+      amount: reward,
+      type: 'EARNED',
+      reason: `Challenge Completed: ${challengeTitle}`,
+      date: todayStr,
+    };
+    setTransactions((prev) => [newTx, ...prev]);
+
+    try {
+      const { error: stuError } = await supabase
+        .from('students')
+        .update({ codex_balance: newBalance })
+        .eq('id', currentStudent.id);
+      if (stuError) throw stuError;
+
+      const { error: txError } = await supabase.from('codex_transactions').insert({
+        id: newTx.id,
+        student_id: currentStudent.id,
+        amount: reward,
+        type: 'EARNED',
+        reason: newTx.reason,
+        date: todayStr,
+      });
+      if (txError) throw txError;
+
+      return { success: true };
+    } catch (err: any) {
+      console.warn('Failed to complete challenge in Supabase, reverting UI:', err);
+      setStudents((prev) =>
+        prev.map((s) => (s.id === currentStudent.id ? { ...s, codexBalance: currentStudent.codexBalance } : s))
+      );
+      setTransactions((prev) => prev.filter((tx) => tx.id !== newTx.id));
+      return { success: false, message: err.message || 'Database error occurred.' };
+    }
+  };
+
   const exportAttendance = async (endDate?: string): Promise<void> => {
     const wb = XLSX.utils.book_new();
     const headers = [
@@ -1277,6 +1431,8 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
         exportAttendance,
         resetDemoData,
         refreshFromBackend,
+        redeemCodexReward,
+        completeChallenge,
       }}
     >
       {children}

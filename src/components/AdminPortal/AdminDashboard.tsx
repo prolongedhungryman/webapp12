@@ -4,6 +4,7 @@ import { MetricsBar } from './MetricsBar';
 import { AttendanceRegisterTable } from './AttendanceRegisterTable';
 import { TokenManagerPanel } from './TokenManagerPanel';
 import { RegisteredUsersPanel } from './RegisteredUsersPanel';
+import { AttendanceLogTab } from './AttendanceLogTab';
 import {
   Shield,
   Calendar,
@@ -11,17 +12,17 @@ import {
   Download,
   RotateCcw,
   Sparkles,
-  Layers,
   CheckCircle,
   Clock,
   LogOut,
   ExternalLink,
-  Users
+  Users,
+  BarChart3
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
   const { todayStr, logout, resetDemoData } = useCamp();
-  const [activeAdminView, setActiveAdminView] = useState<'register' | 'tokens' | 'reports' | 'users'>('register');
+  const [activeAdminView, setActiveAdminView] = useState<'register' | 'tokens' | 'logs' | 'users'>('register');
   const [resetNotice, setResetNotice] = useState(false);
 
   const handleResetData = () => {
@@ -122,15 +123,15 @@ export const AdminDashboard: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveAdminView('reports')}
+          onClick={() => setActiveAdminView('logs')}
           className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-            activeAdminView === 'reports'
+            activeAdminView === 'logs'
               ? 'bg-[#0A84FF] text-white shadow-sm'
               : 'text-[#8E8E93] hover:text-[#F5F5F7] hover:bg-[#1E1E1E]'
           }`}
         >
-          <Layers className="w-3.5 h-3.5" />
-          <span>Student Reports</span>
+          <BarChart3 className="w-3.5 h-3.5" />
+          <span>Attendance Log</span>
         </button>
 
         <button
@@ -150,7 +151,7 @@ export const AdminDashboard: React.FC = () => {
       <div className="space-y-8">
         {activeAdminView === 'register' && <AttendanceRegisterTable />}
         {activeAdminView === 'tokens' && <TokenManagerPanel />}
-        {activeAdminView === 'reports' && <AttendanceRegisterTable />}
+        {activeAdminView === 'logs' && <AttendanceLogTab />}
         {activeAdminView === 'users' && <RegisteredUsersPanel />}
       </div>
 
