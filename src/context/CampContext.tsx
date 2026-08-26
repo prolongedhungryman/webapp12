@@ -969,7 +969,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
       token: newTokenStr,
       isOnboarded: false,
       createdAt: todayStr,
-      assignedGrade: assignedGrade || 'Grade 10',
+      assignedGrade: assignedGrade || 'Class 6',
       studentName: studentName || undefined,
     };
 
@@ -982,7 +982,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
         token: newTokenStr,
         is_onboarded: false,
         created_at: todayStr,
-        assigned_grade: assignedGrade || 'Grade 10',
+        assigned_grade: assignedGrade || 'Class 6',
         student_name: studentName || null,
       })
       .then(({ error }) => {

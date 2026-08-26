@@ -1,20 +1,21 @@
 import React, { useState } from 'react';
 import { useCamp } from '../../context/CampContext';
-import { KeyRound, Plus, Copy, Check, Trash2, ShieldCheck, Sparkles, UserPlus, AlertCircle } from 'lucide-react';
+import { CAMP_CLASSES, CAMP_SECTIONS, DEFAULT_CAMP_CLASS, DEFAULT_CAMP_SECTION } from '../../lib/campOptions';
+import { KeyRound, Plus, Copy, Check, Trash2, ShieldCheck, Sparkles, UserPlus, AlertCircle, Users, CheckCircle2, CircleDot } from 'lucide-react';
 
 export const TokenManagerPanel: React.FC = () => {
-  const { tokens, adminGenerateToken, adminRevokeToken, adminAssignToken } = useCamp();
+  const { tokens, students, adminGenerateToken, adminRevokeToken, adminAssignToken } = useCamp();
 
   const [isGenerating, setIsGenerating] = useState(false);
-  const [targetGrade, setTargetGrade] = useState('Grade 10');
+  const [targetGrade, setTargetGrade] = useState<string>(DEFAULT_CAMP_CLASS);
   const [studentNamePre, setStudentNamePre] = useState('');
   const [justGeneratedToken, setJustGeneratedToken] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
   const [assigningToken, setAssigningToken] = useState<string | null>(null);
   const [assignName, setAssignName] = useState('');
-  const [assignGrade, setAssignGrade] = useState('Grade 10');
-  const [assignSection, setAssignSection] = useState('A');
+  const [assignGrade, setAssignGrade] = useState<string>(DEFAULT_CAMP_CLASS);
+  const [assignSection, setAssignSection] = useState<string>(DEFAULT_CAMP_SECTION);
   const [assignError, setAssignError] = useState<string | null>(null);
 
   const handleGenerate = (e: React.FormEvent) => {
@@ -31,9 +32,12 @@ export const TokenManagerPanel: React.FC = () => {
     setTimeout(() => setCopiedToken(null), 2000);
   };
 
-  const onboardedCount = tokens.filter((t) => t.isOnboarded).length;
-  const awaitingCount = tokens.filter((t) => !t.isOnboarded && t.studentName).length;
-  const unassignedCount = tokens.filter((t) => !t.isOnboarded && !t.studentName).length;
+  // Summary counts: use students.length for "enrolled" (source of truth for actual students)
+  // Use token-level counts for token registry metrics
+  const totalEnrolledStudents = students.length;
+  const onboardedTokenCount = tokens.filter((t) => t.isOnboarded).length;
+  const unassignedTokens = tokens.filter((t) => !t.isOnboarded && !t.studentName);
+  const assignedActiveTokens = tokens.filter((t) => t.isOnboarded || t.studentName);
 
   const handleAssign = async (e: React.FormEvent, tokenStr: string) => {
     e.preventDefault();
@@ -51,9 +55,82 @@ export const TokenManagerPanel: React.FC = () => {
     }
   };
 
+  const openAssignForm = (tokenStr: string, existingGrade?: string) => {
+    setAssigningToken(tokenStr);
+    setAssignName('');
+    setAssignGrade(existingGrade && CAMP_CLASSES.includes(existingGrade as any) ? existingGrade : DEFAULT_CAMP_CLASS);
+    setAssignSection(DEFAULT_CAMP_SECTION);
+    setAssignError(null);
+  };
+
+  const AssignFormRow = ({ tokenStr }: { tokenStr: string }) => (
+    <tr className="bg-[#0A84FF]/5 border-y border-[#0A84FF]/20">
+      <td colSpan={5} className="p-4">
+        <form onSubmit={(e) => handleAssign(e, tokenStr)} className="flex flex-col sm:flex-row gap-3 items-end">
+          <div className="flex-1 w-full">
+            <label className="block text-[10px] font-mono text-[#0A84FF] uppercase mb-1">Student Name</label>
+            <input
+              type="text"
+              value={assignName}
+              onChange={(e) => setAssignName(e.target.value)}
+              placeholder="Full Name"
+              className="w-full px-2.5 py-1.5 bg-[#121212] border border-[#0A84FF]/30 rounded text-xs text-[#F5F5F7] focus:outline-none focus:border-[#0A84FF]"
+              autoFocus
+            />
+          </div>
+          <div className="w-full sm:w-32">
+            <label className="block text-[10px] font-mono text-[#0A84FF] uppercase mb-1">Class</label>
+            <select
+              value={assignGrade}
+              onChange={(e) => setAssignGrade(e.target.value)}
+              className="w-full px-2.5 py-1.5 bg-[#121212] border border-[#0A84FF]/30 rounded text-xs text-[#F5F5F7] focus:outline-none focus:border-[#0A84FF]"
+            >
+              {CAMP_CLASSES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          <div className="w-full sm:w-28">
+            <label className="block text-[10px] font-mono text-[#0A84FF] uppercase mb-1">Section</label>
+            <select
+              value={assignSection}
+              onChange={(e) => setAssignSection(e.target.value)}
+              className="w-full px-2.5 py-1.5 bg-[#121212] border border-[#0A84FF]/30 rounded text-xs text-[#F5F5F7] focus:outline-none focus:border-[#0A84FF]"
+            >
+              {CAMP_SECTIONS.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex space-x-2">
+            <button
+              type="button"
+              onClick={() => setAssigningToken(null)}
+              className="px-3 py-1.5 text-xs text-[#8E8E93] hover:text-[#F5F5F7]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-1.5 rounded bg-[#0A84FF] hover:bg-[#0071E3] text-white text-xs font-semibold"
+            >
+              Save
+            </button>
+          </div>
+        </form>
+        {assignError && (
+          <div className="mt-2 text-[11px] text-[#FF453A] flex items-center">
+            <AlertCircle className="w-3 h-3 mr-1" />
+            {assignError}
+          </div>
+        )}
+      </td>
+    </tr>
+  );
+
   return (
     <div id="token-manager-panel" className="p-6 rounded-2xl bg-[#1E1E1E] border border-[#3A3A3C] shadow-sm space-y-5">
-      
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -64,7 +141,7 @@ export const TokenManagerPanel: React.FC = () => {
             </h2>
           </div>
           <p className="text-xs text-[#8E8E93] mt-0.5">
-            Issue cryptographically formatted single-use authentication codes for camp onboarding.
+            Issue, manage, and assign authentication codes for camp enrollment.
           </p>
         </div>
 
@@ -109,11 +186,9 @@ export const TokenManagerPanel: React.FC = () => {
                 onChange={(e) => setTargetGrade(e.target.value)}
                 className="w-full px-3 py-2 bg-[#1E1E1E] border border-[#3A3A3C] rounded-lg text-xs text-[#F5F5F7] focus:outline-none focus:border-[#0A84FF]"
               >
-                <option value="Grade 8">Grade 8</option>
-                <option value="Grade 9">Grade 9</option>
-                <option value="Grade 10">Grade 10</option>
-                <option value="Grade 11">Grade 11</option>
-                <option value="Grade 12">Grade 12</option>
+                {CAMP_CLASSES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -156,173 +231,218 @@ export const TokenManagerPanel: React.FC = () => {
       )}
 
       {/* Summary Pills */}
-      <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
-        <span className="px-2.5 py-1 rounded-md bg-[#121212] border border-[#3A3A3C] text-[#8E8E93]">
-          Total Issued: <strong className="text-[#F5F5F7]">{tokens.length}</strong>
-        </span>
-        <span className="px-2.5 py-1 rounded-md bg-[#121212] border border-[#3A3A3C] text-[#8E8E93]">
-          Activated: <strong className="text-[#30D158]">{onboardedCount}</strong>
-        </span>
-        <span className="px-2.5 py-1 rounded-md bg-[#121212] border border-[#3A3A3C] text-[#8E8E93]" title="Pre-assigned but student hasn't logged in to register yet">
-          Awaiting Registration: <strong className="text-[#FF9F0A]">{awaitingCount}</strong>
-        </span>
-        <span className="px-2.5 py-1 rounded-md bg-[#121212] border border-[#3A3A3C] text-[#8E8E93]">
-          Unassigned: <strong className="text-[#0A84FF]">{unassignedCount}</strong>
-        </span>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="px-3 py-2.5 rounded-lg bg-[#121212] border border-[#3A3A3C] flex flex-col gap-0.5">
+          <span className="text-[10px] font-mono text-[#8E8E93] uppercase">Total Tokens</span>
+          <span className="text-lg font-bold font-mono text-[#F5F5F7]">{tokens.length}</span>
+          <span className="text-[10px] text-[#505054]">Issued total</span>
+        </div>
+        <div className="px-3 py-2.5 rounded-lg bg-[#121212] border border-[#30D158]/30 flex flex-col gap-0.5">
+          <span className="text-[10px] font-mono text-[#8E8E93] uppercase">Enrolled Students</span>
+          <span className="text-lg font-bold font-mono text-[#30D158]">{totalEnrolledStudents}</span>
+          <span className="text-[10px] text-[#505054]">Active in system</span>
+        </div>
+        <div className="px-3 py-2.5 rounded-lg bg-[#121212] border border-[#0A84FF]/30 flex flex-col gap-0.5">
+          <span className="text-[10px] font-mono text-[#8E8E93] uppercase">Activated Tokens</span>
+          <span className="text-lg font-bold font-mono text-[#0A84FF]">{onboardedTokenCount}</span>
+          <span className="text-[10px] text-[#505054]">Token-level onboarded</span>
+        </div>
+        <div className="px-3 py-2.5 rounded-lg bg-[#121212] border border-[#FF9F0A]/30 flex flex-col gap-0.5">
+          <span className="text-[10px] font-mono text-[#8E8E93] uppercase">Unassigned</span>
+          <span className="text-lg font-bold font-mono text-[#FF9F0A]">{unassignedTokens.length}</span>
+          <span className="text-[10px] text-[#505054]">Open for distribution</span>
+        </div>
       </div>
 
-      {/* Token List */}
-      <div className="overflow-x-auto rounded-xl border border-[#3A3A3C]">
-        <table className="w-full text-left text-xs">
-          <thead className="bg-[#121212] text-[#8E8E93] font-mono uppercase tracking-wider border-b border-[#3A3A3C]">
-            <tr>
-              <th className="px-4 py-3">Access Token</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Assigned / Enrolled Student</th>
-              <th className="px-4 py-3">Issued Date</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#3A3A3C]/70">
-            {tokens.map((t) => {
-              const isCopied = copiedToken === t.token;
+      {/* ── SECTION 1: ACTIVE / ASSIGNED TOKENS ── */}
+      <div className="space-y-2">
+        <div className="flex items-center space-x-2">
+          <CheckCircle2 className="w-4 h-4 text-[#30D158]" />
+          <h3 className="text-xs font-semibold font-mono text-[#30D158] uppercase tracking-wider">
+            Active & Assigned Tokens
+          </h3>
+          <span className="px-2 py-0.5 rounded-full bg-[#30D158]/10 border border-[#30D158]/30 text-[10px] font-mono text-[#30D158]">
+            {assignedActiveTokens.length}
+          </span>
+        </div>
 
-              return (
-                <React.Fragment key={t.token}>
-                  <tr className="hover:bg-[#252528] transition-colors">
-                    <td className="px-4 py-3 font-mono font-bold text-[#F5F5F7]">
-                      <span className="bg-[#121212] px-2 py-0.5 rounded border border-[#3A3A3C]">
-                        {t.token}
-                      </span>
-                    </td>
+        <div className="overflow-x-auto rounded-xl border border-[#30D158]/20">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-[#121212] text-[#8E8E93] font-mono uppercase tracking-wider border-b border-[#3A3A3C]">
+              <tr>
+                <th className="px-4 py-2.5">Access Token</th>
+                <th className="px-4 py-2.5">Status</th>
+                <th className="px-4 py-2.5">Assigned Student</th>
+                <th className="px-4 py-2.5">Class</th>
+                <th className="px-4 py-2.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#3A3A3C]/70">
+              {assignedActiveTokens.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-[#505054] italic text-xs">
+                    No assigned tokens yet.
+                  </td>
+                </tr>
+              ) : (
+                assignedActiveTokens.map((t) => {
+                  const isCopied = copiedToken === t.token;
+                  return (
+                    <React.Fragment key={t.token}>
+                      <tr className="hover:bg-[#252528] transition-colors">
+                        <td className="px-4 py-2.5 font-mono font-bold text-[#F5F5F7]">
+                          <span className="bg-[#121212] px-2 py-0.5 rounded border border-[#3A3A3C]">
+                            {t.token}
+                          </span>
+                        </td>
 
-                    <td className="px-4 py-3">
-                      {t.isOnboarded ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-[#30D158]/10 text-[#30D158] border border-[#30D158]/30">
-                          ACTIVATED
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-[#0A84FF]/10 text-[#0A84FF] border border-[#0A84FF]/30">
-                          {t.studentName ? 'AWAITING REG' : 'UNCLAIMED'}
-                        </span>
-                      )}
-                    </td>
+                        <td className="px-4 py-2.5">
+                          {t.isOnboarded ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-[#30D158]/10 text-[#30D158] border border-[#30D158]/30">
+                              ACTIVATED
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-[#FF9F0A]/10 text-[#FF9F0A] border border-[#FF9F0A]/30">
+                              AWAITING REG
+                            </span>
+                          )}
+                        </td>
 
-                    <td className="px-4 py-3 text-[#8E8E93]">
-                      {t.studentName ? (
-                        <span className="font-medium text-[#F5F5F7]">{t.studentName}</span>
-                      ) : (
-                        <span className="text-[#505054] italic">Unassigned (Open for distribution)</span>
-                      )}
-                      {t.assignedGrade && <span className="ml-1 text-[10px] text-[#8E8E93]">({t.assignedGrade})</span>}
-                    </td>
+                        <td className="px-4 py-2.5 text-[#8E8E93]">
+                          {t.studentName ? (
+                            <span className="font-medium text-[#F5F5F7]">{t.studentName}</span>
+                          ) : (
+                            <span className="text-[#505054] italic">—</span>
+                          )}
+                        </td>
 
-                    <td className="px-4 py-3 font-mono text-[#8E8E93]">
-                      {t.createdAt}
-                    </td>
+                        <td className="px-4 py-2.5 text-[#8E8E93] font-mono text-[11px]">
+                          {t.assignedGrade || '—'}
+                        </td>
 
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end space-x-1.5">
-                        {!t.isOnboarded && !t.studentName && (
-                          <button
-                            onClick={() => {
-                              setAssigningToken(t.token);
-                              setAssignName('');
-                              setAssignGrade(t.assignedGrade || 'Grade 10');
-                            }}
-                            title="Assign to Student"
-                            className="p-1.5 rounded-md bg-[#0A84FF]/10 hover:bg-[#0A84FF]/20 text-[#0A84FF] border border-[#0A84FF]/30 transition-colors"
-                          >
-                            <UserPlus className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleCopy(t.token)}
-                          title="Copy Token"
-                          className="p-1.5 rounded-md bg-[#121212] hover:bg-[#2C2C2E] text-[#8E8E93] hover:text-[#F5F5F7] border border-[#3A3A3C] transition-colors"
-                        >
-                          {isCopied ? <Check className="w-3.5 h-3.5 text-[#30D158]" /> : <Copy className="w-3.5 h-3.5" />}
-                        </button>
-                        <button
-                          onClick={() => adminRevokeToken(t.token)}
-                          title="Revoke Token"
-                          className="p-1.5 rounded-md bg-[#121212] hover:bg-[#FF453A]/10 text-[#8E8E93] hover:text-[#FF453A] border border-[#3A3A3C] transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-
-                  {assigningToken === t.token && (
-                    <tr className="bg-[#0A84FF]/5 border-y border-[#0A84FF]/20">
-                      <td colSpan={5} className="p-4">
-                        <form onSubmit={(e) => handleAssign(e, t.token)} className="flex flex-col sm:flex-row gap-3 items-end">
-                          <div className="flex-1 w-full">
-                            <label className="block text-[10px] font-mono text-[#0A84FF] uppercase mb-1">Student Name</label>
-                            <input
-                              type="text"
-                              value={assignName}
-                              onChange={(e) => setAssignName(e.target.value)}
-                              placeholder="Full Name"
-                              className="w-full px-2.5 py-1.5 bg-[#121212] border border-[#0A84FF]/30 rounded text-xs text-[#F5F5F7] focus:outline-none focus:border-[#0A84FF]"
-                              autoFocus
-                            />
-                          </div>
-                          <div className="w-full sm:w-32">
-                            <label className="block text-[10px] font-mono text-[#0A84FF] uppercase mb-1">Class</label>
-                            <select
-                              value={assignGrade}
-                              onChange={(e) => setAssignGrade(e.target.value)}
-                              className="w-full px-2.5 py-1.5 bg-[#121212] border border-[#0A84FF]/30 rounded text-xs text-[#F5F5F7] focus:outline-none focus:border-[#0A84FF]"
-                            >
-                              <option value="Grade 8">Grade 8</option>
-                              <option value="Grade 9">Grade 9</option>
-                              <option value="Grade 10">Grade 10</option>
-                              <option value="Grade 11">Grade 11</option>
-                              <option value="Grade 12">Grade 12</option>
-                            </select>
-                          </div>
-                          <div className="w-full sm:w-24">
-                            <label className="block text-[10px] font-mono text-[#0A84FF] uppercase mb-1">Section</label>
-                            <input
-                              type="text"
-                              value={assignSection}
-                              onChange={(e) => setAssignSection(e.target.value)}
-                              placeholder="e.g. A"
-                              className="w-full px-2.5 py-1.5 bg-[#121212] border border-[#0A84FF]/30 rounded text-xs text-[#F5F5F7] focus:outline-none focus:border-[#0A84FF]"
-                            />
-                          </div>
-                          <div className="flex space-x-2">
+                        <td className="px-4 py-2.5 text-right">
+                          <div className="flex items-center justify-end space-x-1.5">
                             <button
-                              type="button"
-                              onClick={() => setAssigningToken(null)}
-                              className="px-3 py-1.5 text-xs text-[#8E8E93] hover:text-[#F5F5F7]"
+                              onClick={() => handleCopy(t.token)}
+                              title="Copy Token"
+                              className="p-1.5 rounded-md bg-[#121212] hover:bg-[#2C2C2E] text-[#8E8E93] hover:text-[#F5F5F7] border border-[#3A3A3C] transition-colors"
                             >
-                              Cancel
+                              {isCopied ? <Check className="w-3.5 h-3.5 text-[#30D158]" /> : <Copy className="w-3.5 h-3.5" />}
                             </button>
                             <button
-                              type="submit"
-                              className="px-4 py-1.5 rounded bg-[#0A84FF] hover:bg-[#0071E3] text-white text-xs font-semibold"
+                              onClick={() => adminRevokeToken(t.token)}
+                              title="Revoke Token"
+                              className="p-1.5 rounded-md bg-[#121212] hover:bg-[#FF453A]/10 text-[#8E8E93] hover:text-[#FF453A] border border-[#3A3A3C] transition-colors"
                             >
-                              Save
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
-                        </form>
-                        {assignError && (
-                          <div className="mt-2 text-[11px] text-[#FF453A] flex items-center">
-                            <AlertCircle className="w-3 h-3 mr-1" />
-                            {assignError}
+                        </td>
+                      </tr>
+                    </React.Fragment>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── SECTION 2: UNASSIGNED / OPEN TOKENS ── */}
+      <div className="space-y-2">
+        <div className="flex items-center space-x-2">
+          <CircleDot className="w-4 h-4 text-[#FF9F0A]" />
+          <h3 className="text-xs font-semibold font-mono text-[#FF9F0A] uppercase tracking-wider">
+            Unassigned Tokens — Available for Distribution
+          </h3>
+          <span className="px-2 py-0.5 rounded-full bg-[#FF9F0A]/10 border border-[#FF9F0A]/30 text-[10px] font-mono text-[#FF9F0A]">
+            {unassignedTokens.length}
+          </span>
+        </div>
+        <p className="text-[11px] text-[#8E8E93]">
+          These tokens have not been given to any student yet. Click the <strong className="text-[#0A84FF]">Assign</strong> button to link a token to a new student.
+        </p>
+
+        <div className="overflow-x-auto rounded-xl border border-[#FF9F0A]/20">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-[#121212] text-[#8E8E93] font-mono uppercase tracking-wider border-b border-[#3A3A3C]">
+              <tr>
+                <th className="px-4 py-2.5">Access Token</th>
+                <th className="px-4 py-2.5">Status</th>
+                <th className="px-4 py-2.5">Class Tag</th>
+                <th className="px-4 py-2.5">Issued Date</th>
+                <th className="px-4 py-2.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#3A3A3C]/70">
+              {unassignedTokens.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-[#505054] italic text-xs">
+                    All tokens have been assigned. Generate more using the button above.
+                  </td>
+                </tr>
+              ) : (
+                unassignedTokens.map((t) => {
+                  const isCopied = copiedToken === t.token;
+                  return (
+                    <React.Fragment key={t.token}>
+                      <tr className="hover:bg-[#252528] transition-colors">
+                        <td className="px-4 py-2.5 font-mono font-bold text-[#F5F5F7]">
+                          <span className="bg-[#121212] px-2 py-0.5 rounded border border-[#3A3A3C]">
+                            {t.token}
+                          </span>
+                        </td>
+
+                        <td className="px-4 py-2.5">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-[#FF9F0A]/10 text-[#FF9F0A] border border-[#FF9F0A]/30">
+                            UNCLAIMED
+                          </span>
+                        </td>
+
+                        <td className="px-4 py-2.5 font-mono text-[#8E8E93] text-[11px]">
+                          {t.assignedGrade || '—'}
+                        </td>
+
+                        <td className="px-4 py-2.5 font-mono text-[#8E8E93]">
+                          {t.createdAt}
+                        </td>
+
+                        <td className="px-4 py-2.5 text-right">
+                          <div className="flex items-center justify-end space-x-1.5">
+                            <button
+                              onClick={() => openAssignForm(t.token, t.assignedGrade)}
+                              title="Assign to Student"
+                              className="flex items-center space-x-1 px-2.5 py-1.5 rounded-md bg-[#0A84FF]/10 hover:bg-[#0A84FF]/20 text-[#0A84FF] border border-[#0A84FF]/30 transition-colors text-[11px] font-semibold"
+                            >
+                              <UserPlus className="w-3.5 h-3.5" />
+                              <span>Assign</span>
+                            </button>
+                            <button
+                              onClick={() => handleCopy(t.token)}
+                              title="Copy Token"
+                              className="p-1.5 rounded-md bg-[#121212] hover:bg-[#2C2C2E] text-[#8E8E93] hover:text-[#F5F5F7] border border-[#3A3A3C] transition-colors"
+                            >
+                              {isCopied ? <Check className="w-3.5 h-3.5 text-[#30D158]" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                            <button
+                              onClick={() => adminRevokeToken(t.token)}
+                              title="Delete Token"
+                              className="p-1.5 rounded-md bg-[#121212] hover:bg-[#FF453A]/10 text-[#8E8E93] hover:text-[#FF453A] border border-[#3A3A3C] transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
-                        )}
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+                        </td>
+                      </tr>
+
+                      {assigningToken === t.token && <AssignFormRow tokenStr={t.token} />}
+                    </React.Fragment>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
     </div>
