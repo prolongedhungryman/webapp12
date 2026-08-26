@@ -21,15 +21,24 @@ import {
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
-  const { todayStr, logout, resetDemoData } = useCamp();
+  const { todayStr, logout, resetDemoData, adminRecalculateAllTokens, isLoading } = useCamp();
   const [activeAdminView, setActiveAdminView] = useState<'register' | 'tokens' | 'logs' | 'users'>('register');
   const [resetNotice, setResetNotice] = useState(false);
+  const [recalcNotice, setRecalcNotice] = useState(false);
 
   const handleResetData = () => {
     if (window.confirm('Reset all demo attendance records and student data to factory state?')) {
       resetDemoData();
       setResetNotice(true);
       setTimeout(() => setResetNotice(false), 3000);
+    }
+  };
+
+  const handleRecalculate = async () => {
+    if (window.confirm('Clear all token balances and recalculate streaks historically for all students? This cannot be undone.')) {
+      await adminRecalculateAllTokens();
+      setRecalcNotice(true);
+      setTimeout(() => setRecalcNotice(false), 3000);
     }
   };
 
@@ -68,6 +77,16 @@ export const AdminDashboard: React.FC = () => {
         {/* Action Controls */}
         <div className="flex items-center space-x-2.5">
           <button
+            onClick={handleRecalculate}
+            disabled={isLoading}
+            title="Recalculate all tokens and streaks"
+            className="flex items-center space-x-1.5 px-3 py-2 rounded-lg bg-[#0A84FF]/10 hover:bg-[#0A84FF]/20 border border-[#0A84FF]/30 text-xs text-[#0A84FF] transition-colors font-mono"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{isLoading ? 'Recalculating...' : 'Recalculate Streaks'}</span>
+          </button>
+
+          <button
             onClick={handleResetData}
             title="Reset to default demo data"
             className="flex items-center space-x-1.5 px-3 py-2 rounded-lg bg-[#121212] hover:bg-[#2C2C2E] border border-[#3A3A3C] text-xs text-[#8E8E93] hover:text-[#F5F5F7] transition-colors font-mono"
@@ -90,6 +109,13 @@ export const AdminDashboard: React.FC = () => {
         <div className="p-3 rounded-xl bg-[#30D158]/15 border border-[#30D158]/30 text-xs text-[#30D158] flex items-center space-x-2">
           <CheckCircle className="w-4 h-4" />
           <span>Demo state reset successfully. Initial students, tokens, and attendance restored.</span>
+        </div>
+      )}
+
+      {recalcNotice && (
+        <div className="p-3 rounded-xl bg-[#0A84FF]/15 border border-[#0A84FF]/30 text-xs text-[#0A84FF] flex items-center space-x-2">
+          <CheckCircle className="w-4 h-4" />
+          <span>Streaks and points have been successfully recalculated for all students based on attendance history.</span>
         </div>
       )}
 

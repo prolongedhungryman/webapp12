@@ -13,6 +13,9 @@ export const ProfileTab: React.FC = () => {
   const [schoolName, setSchoolName] = useState(currentStudent?.schoolName || 'Oxford Secondary School');
   const [parentPhone, setParentPhone] = useState(currentStudent?.parentPhone || '');
   const [track, setTrack] = useState(currentStudent?.track || 'Full-Stack Web Development');
+  const [githubProfile, setGithubProfile] = useState(currentStudent?.githubProfile || '');
+  const [linkedinProfile, setLinkedinProfile] = useState(currentStudent?.linkedinProfile || '');
+  const [bio, setBio] = useState(currentStudent?.bio || '');
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   if (!currentStudent) return null;
@@ -25,7 +28,10 @@ export const ProfileTab: React.FC = () => {
       section,
       schoolName,
       parentPhone,
-      track
+      track,
+      githubProfile,
+      linkedinProfile,
+      bio
     });
     setIsEditing(false);
     setSavedSuccess(true);
@@ -186,6 +192,45 @@ export const ProfileTab: React.FC = () => {
                   <option value="Systems & Web Security">Systems & Web Security</option>
                 </select>
               </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest mb-1.5">
+                  GitHub Profile URL (Optional)
+                </label>
+                <input
+                  type="url"
+                  value={githubProfile}
+                  onChange={(e) => setGithubProfile(e.target.value)}
+                  placeholder="https://github.com/username"
+                  className="w-full px-3.5 py-2 bg-[#121212] border border-[#3A3A3C] rounded-md text-xs text-[#F5F5F7] focus:outline-none focus:border-[#0A84FF]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest mb-1.5">
+                  LinkedIn Profile URL (Optional)
+                </label>
+                <input
+                  type="url"
+                  value={linkedinProfile}
+                  onChange={(e) => setLinkedinProfile(e.target.value)}
+                  placeholder="https://linkedin.com/in/username"
+                  className="w-full px-3.5 py-2 bg-[#121212] border border-[#3A3A3C] rounded-md text-xs text-[#F5F5F7] focus:outline-none focus:border-[#0A84FF]"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest mb-1.5">
+                  Student Bio
+                </label>
+                <textarea
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  placeholder="Tell us a little bit about yourself, your interests, and your coding journey..."
+                  rows={3}
+                  className="w-full px-3.5 py-2 bg-[#121212] border border-[#3A3A3C] rounded-md text-xs text-[#F5F5F7] focus:outline-none focus:border-[#0A84FF] resize-none"
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-end space-x-3 pt-3 border-t border-[#3A3A3C]">
@@ -275,6 +320,42 @@ export const ProfileTab: React.FC = () => {
               <div className="p-2 rounded bg-[#121212] border border-[#3A3A3C]/60">
                 <span className="text-[#0A84FF] font-medium block">Week 3–4 (Current)</span>
                 APIs &amp; Capstone
+              </div>
+            </div>
+          </div>
+
+          {/* Public Profile Info */}
+          <div className="p-6 rounded-lg bg-[#1E1E1E] border border-[#3A3A3C] shadow-sm space-y-4 md:col-span-2">
+            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-[#0A84FF] flex items-center space-x-1.5">
+              <span>Public Profile Details</span>
+            </h3>
+
+            <div className="divide-y divide-[#3A3A3C]/60 text-xs">
+              <div className="py-2.5 flex items-start justify-between">
+                <span className="text-[#8E8E93] w-1/4">Bio</span>
+                <span className="text-[#F5F5F7] w-3/4 text-right">
+                  {currentStudent.bio || <span className="text-[#505054] italic">No bio provided</span>}
+                </span>
+              </div>
+              <div className="py-2.5 flex items-center justify-between">
+                <span className="text-[#8E8E93]">GitHub</span>
+                {currentStudent.githubProfile ? (
+                  <a href={currentStudent.githubProfile} target="_blank" rel="noreferrer" className="text-[#0A84FF] hover:underline truncate max-w-[200px]">
+                    {currentStudent.githubProfile}
+                  </a>
+                ) : (
+                  <span className="text-[#505054] italic">Not linked</span>
+                )}
+              </div>
+              <div className="py-2.5 flex items-center justify-between">
+                <span className="text-[#8E8E93]">LinkedIn</span>
+                {currentStudent.linkedinProfile ? (
+                  <a href={currentStudent.linkedinProfile} target="_blank" rel="noreferrer" className="text-[#0A84FF] hover:underline truncate max-w-[200px]">
+                    {currentStudent.linkedinProfile}
+                  </a>
+                ) : (
+                  <span className="text-[#505054] italic">Not linked</span>
+                )}
               </div>
             </div>
           </div>

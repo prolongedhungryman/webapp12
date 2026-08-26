@@ -14,6 +14,11 @@ export interface Student {
   avatarSeed?: string;
   track?: string;
   password?: string;
+  githubProfile?: string;
+  linkedinProfile?: string;
+  bio?: string;
+  streakCount?: number;
+  lastCheckInDate?: string;
 }
 
 export interface TokenRecord {

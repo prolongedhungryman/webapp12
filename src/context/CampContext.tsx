@@ -69,6 +69,7 @@ interface CampContextType {
   refreshFromBackend: () => Promise<void>;
   redeemCodexReward: (perkId: string, perkTitle: string, cost: number) => Promise<{ success: boolean; message?: string }>;
   completeChallenge: (challengeId: string, challengeTitle: string, reward: number) => Promise<{ success: boolean; message?: string }>;
+  adminRecalculateAllTokens: () => Promise<void>;
 }
 
 const CampContext = createContext<CampContextType | undefined>(undefined);
@@ -97,6 +98,11 @@ const mapDbStudentToStudent = (row: any): Student => ({
   avatarSeed: row.avatar_seed || undefined,
   track: row.track || 'Full-Stack Web Development',
   password: row.password || undefined,
+  githubProfile: row.github_profile || undefined,
+  linkedinProfile: row.linkedin_profile || undefined,
+  bio: row.bio || undefined,
+  streakCount: Number(row.streak_count) || 0,
+  lastCheckInDate: row.last_check_in_date || undefined,
 });
 
 const mapDbTokenToToken = (row: any): TokenRecord => ({
@@ -785,6 +791,9 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (updates.schoolName !== undefined) dbUpdates.school_name = updates.schoolName;
       if (updates.parentPhone !== undefined) dbUpdates.parent_phone = updates.parentPhone;
       if (updates.track !== undefined) dbUpdates.track = updates.track;
+      if (updates.githubProfile !== undefined) dbUpdates.github_profile = updates.githubProfile;
+      if (updates.linkedinProfile !== undefined) dbUpdates.linkedin_profile = updates.linkedinProfile;
+      if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
       // Strip codexBalance to prevent security issues/tampering from the frontend profile form
       if (updates.password !== undefined) dbUpdates.password = updates.password;
       dbUpdates.updated_at = new Date().toISOString();
@@ -837,10 +846,25 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAttendanceRecords((prev) => [newRec, ...prev]);
     }
 
-    // Award +50 CODEX tokens (per-day login grants 50 codex points)
+    const currentStu = students.find((s) => s.id === studentId);
+    let newStreakCount = currentStu?.streakCount || 0;
+    
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+    if (currentStu?.lastCheckInDate === yesterdayStr) {
+      newStreakCount += 1;
+    } else if (currentStu?.lastCheckInDate !== todayStr) {
+      newStreakCount = 1;
+    }
+
+    const pointsToAdd = Math.round(50 * Math.pow(1.5, newStreakCount - 1));
+
+    // Award CODEX tokens based on streak
     setStudents((prev) =>
       prev.map((s) =>
-        s.id === studentId ? { ...s, codexBalance: s.codexBalance + 50 } : s
+        s.id === studentId ? { ...s, codexBalance: s.codexBalance + pointsToAdd, streakCount: newStreakCount, lastCheckInDate: todayStr } : s
       )
     );
 
@@ -848,9 +872,9 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const newTx: CodexTransaction = {
       id: `tx_${Date.now()}`,
       studentId,
-      amount: 50,
+      amount: pointsToAdd,
       type: 'EARNED',
-      reason: `Daily Attendance Check-in (${todayStr})`,
+      reason: `Daily Attendance Check-in (Streak: ${newStreakCount})`,
       date: todayStr,
     };
     setTransactions((prev) => [newTx, ...prev]);
@@ -875,11 +899,13 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
           verified_by: 'SELF',
           timestamp: Date.now(),
         });
-        const currentStu = students.find((s) => s.id === studentId);
-        if (currentStu) {
+        const currentStuState = students.find((s) => s.id === studentId);
+        if (currentStuState) {
+          const sCount = currentStuState.lastCheckInDate === yesterdayStr ? (currentStuState.streakCount || 0) + 1 : 1;
+          const pAdd = Math.round(50 * Math.pow(1.5, sCount - 1));
           await supabase
             .from('students')
-            .update({ codex_balance: currentStu.codexBalance + 50 })
+            .update({ codex_balance: currentStuState.codexBalance + pAdd, streak_count: sCount, last_check_in_date: todayStr })
             .eq('id', studentId);
         }
       }
@@ -1391,6 +1417,78 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await refreshFromBackend();
   };
 
+  const adminRecalculateAllTokens = async () => {
+    setIsLoading(true);
+    
+    // Sort all records chronologically
+    const sortedRecords = [...attendanceRecords].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    
+    const studentData: Record<string, { codexBalance: number, streakCount: number, lastCheckInDate: string }> = {};
+
+    students.forEach(s => {
+      studentData[s.id] = { codexBalance: 50, streakCount: 0, lastCheckInDate: '' }; // Start with 50 onboarding points
+    });
+
+    sortedRecords.forEach(rec => {
+      if (rec.status !== 'PRESENT' || !studentData[rec.studentId]) return;
+      
+      const sData = studentData[rec.studentId];
+      if (sData.lastCheckInDate === rec.date) return; // already counted today
+
+      let newStreak = 0;
+      if (sData.lastCheckInDate) {
+        const checkDate = new Date(rec.date);
+        const lastDate = new Date(sData.lastCheckInDate);
+        const diffDays = Math.floor((checkDate.getTime() - lastDate.getTime()) / (1000 * 3600 * 24));
+        
+        if (diffDays === 1) {
+          newStreak = sData.streakCount + 1;
+        } else if (diffDays > 1) {
+          newStreak = 1;
+        } else {
+          newStreak = sData.streakCount;
+        }
+      } else {
+        newStreak = 1;
+      }
+      
+      if (newStreak > 0) {
+        const points = Math.round(50 * Math.pow(1.5, newStreak - 1));
+        sData.codexBalance += points;
+        sData.streakCount = newStreak;
+        sData.lastCheckInDate = rec.date;
+      }
+    });
+
+    // Update state
+    setStudents(prev => prev.map(s => {
+      if (studentData[s.id]) {
+        return { ...s, ...studentData[s.id] };
+      }
+      return s;
+    }));
+
+    // Update supabase
+    try {
+      const updates = students.map(s => {
+        const d = studentData[s.id];
+        return {
+          id: s.id,
+          codex_balance: d?.codexBalance || 0,
+          streak_count: d?.streakCount || 0,
+          last_check_in_date: d?.lastCheckInDate || null
+        };
+      });
+      if (updates.length > 0) {
+        await supabase.from('students').upsert(updates);
+      }
+    } catch (e) {
+      console.warn("Failed to update streaks to DB", e);
+    }
+    
+    setIsLoading(false);
+  };
+
   return (
     <CampContext.Provider
       value={{
@@ -1433,6 +1531,7 @@ export const CampProvider: React.FC<{ children: React.ReactNode }> = ({ children
         refreshFromBackend,
         redeemCodexReward,
         completeChallenge,
+        adminRecalculateAllTokens,
       }}
     >
       {children}

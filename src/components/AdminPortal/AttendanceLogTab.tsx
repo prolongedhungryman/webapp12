@@ -16,10 +16,9 @@ export const AttendanceLogTab: React.FC = () => {
     return uniqueDates.map((date) => {
       const recordsForDate = attendanceRecords.filter((r) => r.date === date);
       const presentCount = recordsForDate.filter((r) => r.status === 'PRESENT').length;
-      const absentCount = recordsForDate.filter((r) => r.status === 'ABSENT').length;
-      
-      // Total might be recordsForDate.length, but let's base it on actual records or current students count as fallback
-      const totalStudentsOnDate = recordsForDate.length || students.length || 1;
+      // Base the total strictly on enrolled students so percentages are accurate
+      const totalStudentsOnDate = Math.max(students.length, 1);
+      const absentCount = totalStudentsOnDate - presentCount;
       const presentPercent = Math.round((presentCount / totalStudentsOnDate) * 100);
 
       return {
@@ -174,7 +173,7 @@ export const AttendanceLogTab: React.FC = () => {
                         className="flex-1 flex flex-col items-center group cursor-pointer"
                       >
                         {/* Present Count Tooltip Hover label */}
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-1 bg-[#2C2C2E] border border-[#3A3A3C] text-[10px] px-2 py-0.5 rounded font-mono shadow-md text-[#F5F5F7] z-20 pointer-events-none">
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 bg-[#2C2C2E] border border-[#3A3A3C] text-[10px] px-2 py-0.5 rounded font-mono shadow-md text-[#F5F5F7] z-20 pointer-events-none whitespace-nowrap">
                           {d.presentCount} Pres. / {d.absentCount} Abs.
                         </div>
 
